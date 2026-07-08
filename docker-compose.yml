@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - internal
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/adaptive-code-platform
+    depends_on:
+      - mongo
+    ports:
+      - "5000:5000"
+    networks:
+      - internal
+      - default
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    env_file:
+      - ./frontend/.env
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    networks:
+      - default
+
+networks:
+  internal:
+    internal: true # DB not reachable from outside the compose network
+  default:
+
+volumes:
+  mongo-data:
