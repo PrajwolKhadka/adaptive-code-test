@@ -1,23 +1,4 @@
-/**
- * Data model design — Adaptive Code Solving Platform
- * MERN + TypeScript + Mongoose
- *
- * Design notes (for your report's "Design and Implementation" section):
- * - Difficulty is stored as an enum string but mapped to a numeric IRT scale
- *   (-2 .. +2) via difficultyMap, same pattern as your quiz platform.
- * - Test.questionPoolIds is snapshotted per-attempt (like your old
- *   setQuizQuestionPool) to prevent mid-test question changes = integrity control.
- * - SubmissionJob is a separate collection from Attempt so the sandboxed
- *   execution can be async/queued without blocking the request thread —
- *   this is also your natural rate-limiting choke point.
- * - EXP is never mutated directly on User; every change goes through
- *   ExpTransaction as an append-only ledger (this IS your "digital
- *   signature + rollback" transaction mechanism for section 2.4).
- */
-
 import { Schema, model, Types } from "mongoose";
-
-// ---------- Enums ----------
 
 export enum Difficulty {
   VERY_EASY = "very_easy",
@@ -46,17 +27,15 @@ export enum SubmissionStatus {
   PASSED = "passed",
   FAILED = "failed",
   PARTIAL = "partial",
-  ERROR = "error", // compile error, runtime crash
+  ERROR = "error", 
   TIMEOUT = "timeout",
   REJECTED = "rejected", // failed static pre-checks before even running
 }
 
-// ---------- User ----------
-
 interface IUser {
   email: string;
-  passwordHash: string; // argon2id
-  passwordHistory: string[]; // last 5 hashes, for reuse prevention
+  passwordHash: string; 
+  passwordHistory: string[];
   passwordChangedAt: Date;
   role: Role;
   mfaEnabled: boolean;
@@ -86,12 +65,10 @@ const userSchema = new Schema<IUser>(
   { timestamps: true },
 );
 
-// ---------- Question ----------
-
 interface ITestCase {
   input: string;
   expectedOutput: string;
-  isHidden: boolean; // hidden cases not shown to student, prevents gaming
+  isHidden: boolean;
   weight: number; // for partial credit
 }
 
@@ -139,11 +116,9 @@ const questionSchema = new Schema<IQuestion>(
   { timestamps: true },
 );
 
-// ---------- Test (a "session" of 15 questions) ----------
-
 interface ITest {
   studentId: Types.ObjectId;
-  questionPoolIds: Types.ObjectId[]; // snapshotted at test start — integrity control
+  questionPoolIds: Types.ObjectId[]; 
   status: "in_progress" | "completed" | "abandoned";
   thetaTrajectory: { afterQuestionIndex: number; theta: number }[];
   startedAt: Date;
@@ -168,8 +143,6 @@ const testSchema = new Schema<ITest>(
   },
   { timestamps: true },
 );
-
-// ---------- Attempt (one question within a Test) ----------
 
 interface IAttempt {
   testId: Types.ObjectId;
@@ -202,12 +175,8 @@ const attemptSchema = new Schema<IAttempt>(
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
-// Enforce one attempt per (student, test, question) at the DB level —
-// prevents the resubmission race condition your old quiz platform guarded
-// against only in application code.
-attemptSchema.index({ testId: 1, questionId: 1 }, { unique: true });
 
-// ---------- SubmissionJob (async sandboxed execution queue) ----------
+attemptSchema.index({ testId: 1, questionId: 1 }, { unique: true });
 
 interface ISubmissionJob {
   attemptId?: Types.ObjectId; // set once attempt is finalized
@@ -235,8 +204,6 @@ const submissionJobSchema = new Schema<ISubmissionJob>({
   finishedAt: { type: Date },
 });
 
-// ---------- ExpTransaction (append-only ledger — the "2.4 transaction" control) ----------
-
 interface IExpTransaction {
   studentId: Types.ObjectId;
   type: "earn" | "spend";
@@ -263,8 +230,6 @@ const expTransactionSchema = new Schema<IExpTransaction>(
   { timestamps: { createdAt: true, updatedAt: false } },
 );
 
-// ---------- ActivityLog (2.5 logging/monitoring) ----------
-
 interface IActivityLog {
   userId?: Types.ObjectId;
   action: string; // e.g. "login_failed", "hint_purchased", "admin_question_deleted"
@@ -286,6 +251,34 @@ const activityLogSchema = new Schema<IActivityLog>(
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
+
+interface ISession {
+  userId: Types.ObjectId;
+  refreshTokenHash: string;
+  userAgentHash: string; // sha256 of raw User-Agent string, for device binding
+  ip: string;
+  revoked: boolean;
+  used: boolean; // true once this token has been exchanged for a new one
+  replacedBySessionId?: Types.ObjectId;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+const sessionSchema = new Schema<ISession>(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    refreshTokenHash: { type: String, required: true, unique: true },
+    userAgentHash: { type: String, required: true },
+    ip: { type: String, required: true },
+    revoked: { type: Boolean, default: false },
+    used: { type: Boolean, default: false },
+    replacedBySessionId: { type: Schema.Types.ObjectId, ref: "Session" },
+    expiresAt: { type: Date, required: true, index: { expires: 0 } }, // TTL index — Mongo auto-deletes expired sessions
+  },
+  { timestamps: { createdAt: true, updatedAt: false } },
+);
+
+export const SessionModel = model<ISession>("Session", sessionSchema);
 
 export const UserModel = model<IUser>("User", userSchema);
 export const QuestionModel = model<IQuestion>("Question", questionSchema);
