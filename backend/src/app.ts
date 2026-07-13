@@ -11,9 +11,6 @@ import routes from "./routes";
 export function createApp(): Application {
   const app = express();
 
-  // Trust first proxy only — needed for correct IP detection behind a
-  // reverse proxy (nginx/Render/etc), required for rate limiting and
-  // activity logging to record real client IPs rather than the proxy's.
   app.set("trust proxy", 1);
 
   app.use(
@@ -37,10 +34,10 @@ export function createApp(): Application {
     }),
   );
 
-  app.use(express.json({ limit: "100kb" })); // cap body size — cheap DoS mitigation
+  app.use(express.json({ limit: "100kb" }));
   app.use(cookieParser());
-  app.use(mongoSanitize()); // strips $/. operators from req.body/query/params — NoSQL injection defense
-  app.use(hpp()); // HTTP parameter pollution defense
+  app.use(mongoSanitize());
+  app.use(hpp());
 
   app.use("/api", apiLimiter);
   app.use("/api", routes);
