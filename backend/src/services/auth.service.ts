@@ -39,9 +39,6 @@ export class AuthService {
   async register(email: string, password: string, ctx: RequestContext) {
     const existing = await this.userRepo.findByEmail(email);
     if (existing) {
-      // Deliberately vague — do not reveal whether the email is registered.
-      // A distinct "email already exists" message is a classic user-
-      // enumeration vector.
       throw new AppError("Unable to complete registration with the provided details.", 400);
     }
 
@@ -59,16 +56,12 @@ export class AuthService {
     return { id: user._id, email: user.email };
   }
 
-  /**
-   * Step 1 of login: verify credentials. Returns either a full session
-   * (if MFA is not enabled) or an mfaChallengeToken (if it is), never both.
-   */
+
+  //  Step 1 of login: verify credentials. Returns either a full session
+
   async login(email: string, password: string, captchaToken: string | undefined, ctx: RequestContext) {
     const user = await this.userRepo.findByEmail(email, true);
 
-    // Constant-shape response whether the user exists or not: always run
-    // a verify() call (against a dummy hash if no user) so response timing
-    // doesn't leak account existence via a timing side channel.
     const DUMMY_HASH = "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQ$ZmFrZWhhc2hmb3J0aW1pbmc";
     const passwordOk = await verifyPassword(user?.passwordHash ?? DUMMY_HASH, password);
 
@@ -88,9 +81,7 @@ export class AuthService {
       throw new AppError("Account temporarily locked due to repeated failed attempts.", 423);
     }
 
-    // CAPTCHA required once an account has racked up enough recent failures —
-    // a proxy for "this login attempt is high-risk" without requiring it
-    // for every legitimate user on every login.
+    // CAPTCHA
     if (user.failedLoginAttempts >= CAPTCHA_TRIGGER_THRESHOLD) {
       const captchaOk = await verifyCaptcha(captchaToken, ctx.ip);
       if (!captchaOk) {
@@ -113,8 +104,6 @@ export class AuthService {
     await this.userRepo.resetFailedAttempts(user._id as Types.ObjectId);
 
     if (isPasswordExpired(user.passwordChangedAt)) {
-      // Signal to the client to force a password-change flow rather than
-      // issuing a session — do not silently let an expired password through.
       throw new AppError("Password expired. Please reset your password to continue.", 403);
     }
 
@@ -167,11 +156,7 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  /**
-   * Refresh flow with rotation + reuse detection. Every call consumes the
-   * presented refresh token and issues a new one; presenting an
-   * already-used token triggers a full session wipe for that user.
-   */
+
   async refresh(refreshToken: string, ctx: RequestContext) {
     const tokenHash = hashRefreshToken(refreshToken);
     const session = await this.sessionRepo.findByTokenHash(tokenHash);
@@ -196,12 +181,6 @@ export class AuthService {
     if (session.expiresAt < new Date()) {
       throw new AppError("Session expired. Please log in again.", 401);
     }
-
-    // Device-binding check: flag (don't necessarily hard-block, to avoid
-    // locking out users whose browser legitimately updates its UA string)
-    // a refresh from a different device than the one that started the
-    // session. Hard-block is easy to flip on if your report wants strict
-    // binding — trade-off noted here for the write-up.
     if (session.userAgentHash !== hashUserAgent(ctx.userAgent)) {
       await logActivity({
         userId: session.userId,
@@ -250,13 +229,9 @@ export class AuthService {
 
     const { plainSecret, encryptedSecret } = generateMfaSecret();
     await this.userRepo.setMfaSecret(userId, encryptedSecret);
-    // Email is read from the authenticated user's own record, never from
-    // client input — prevents a client from labeling the QR code with an
-    // arbitrary/spoofed identity.
+
     const otpauthUrl = buildOtpAuthUrl(user.email, plainSecret);
-    // Return the plain secret + otpauth URL ONCE, for QR provisioning.
-    // It is never returned again after this call — only the encrypted
-    // form is persisted.
+
     return { otpauthUrl, plainSecret };
   }
 
@@ -286,9 +261,6 @@ export class AuthService {
     const newHash = await hashPassword(newPassword);
     const newHistory = pushPasswordHistory(user.passwordHistory, newHash);
     await this.userRepo.updatePassword(userId, newHash, newHistory);
-
-    // Password change invalidates all existing sessions — a stolen session
-    // shouldn't survive a password reset.
     await this.sessionRepo.revokeAllForUser(userId);
 
     await logActivity({ userId, action: "password_changed", ip: ctx.ip, userAgent: ctx.userAgent });
