@@ -7,9 +7,7 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many attempts. Try again later." },
-  // Consider keying by email+IP combo at the controller level for account
-  // lockout, in addition to this IP-based limiter, so a distributed
-  // attacker can't bypass this by rotating IPs against a single account.
+
 });
 
 // Looser general-purpose limiter for the rest of the API.
@@ -20,8 +18,6 @@ export const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Very strict limiter for code submission — this endpoint triggers sandboxed
-// execution, so it's also your resource-exhaustion / DoS choke point.
 export const submissionLimiter = rateLimit({
   windowMs: 60_000,
   max: 10,

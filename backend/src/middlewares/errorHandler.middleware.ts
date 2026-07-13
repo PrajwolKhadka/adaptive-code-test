@@ -13,9 +13,7 @@ export class AppError extends Error {
   }
 }
 
-// Centralized handler — prevents leaking stack traces / internal details
-// to clients in production (information disclosure is explicitly in scope
-// for your pentest section).
+
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction) {
   const isAppError = err instanceof AppError;
   const statusCode = isAppError ? err.statusCode : 500;
@@ -30,6 +28,5 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
   res.status(statusCode).json({
     success: false,
     message,
-    // Never include err.stack or raw err in the response body.
   });
 }
