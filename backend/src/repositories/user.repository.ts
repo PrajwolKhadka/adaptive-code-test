@@ -5,7 +5,9 @@ export class UserRepository {
   findByEmail(email: string, withSecrets = false) {
     const query = UserModel.findOne({ email: email.toLowerCase().trim() });
     if (withSecrets) {
-      query.select("+passwordHash +passwordHistory +mfaSecret");
+      query.select(
+        "+passwordHash +passwordHistory +mfaSecret +emailVerificationOtpHash +emailVerificationOtpExpiresAt +emailVerificationAttempts",
+      );
     }
     return query;
   }
