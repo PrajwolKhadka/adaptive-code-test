@@ -34,16 +34,22 @@ export enum SubmissionStatus {
 
 interface IUser {
   email: string;
-  passwordHash: string; 
+  passwordHash?: string; // argon2id — optional: OAuth-only accounts have no password
   passwordHistory: string[];
   passwordChangedAt: Date;
   role: Role;
+  isEmailVerified: boolean;
+  emailVerificationOtpHash?: string;
+  emailVerificationOtpExpiresAt?: Date;
+  emailVerificationAttempts: number;
+  googleId?: string;
+  githubId?: string;
   mfaEnabled: boolean;
-  mfaSecret?: string; // encrypted at rest
+  mfaSecret?: string;
   failedLoginAttempts: number;
   lockedUntil?: Date;
-  exp: number; // DERIVED/cached value only — source of truth is ExpTransaction ledger
-  theta: number; // current IRT ability estimate, global or per-topic (see Test model note)
+  exp: number;
+  theta: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,10 +57,16 @@ interface IUser {
 const userSchema = new Schema<IUser>(
   {
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    passwordHash: { type: String, required: true, select: false },
+    passwordHash: { type: String, select: false },
     passwordHistory: { type: [String], default: [], select: false },
     passwordChangedAt: { type: Date, default: Date.now },
     role: { type: String, enum: Object.values(Role), default: Role.STUDENT },
+    isEmailVerified: { type: Boolean, default: false },
+    emailVerificationOtpHash: { type: String, select: false },
+    emailVerificationOtpExpiresAt: { type: Date, select: false },
+    emailVerificationAttempts: { type: Number, default: 0, select: false },
+    googleId: { type: String, unique: true, sparse: true },
+    githubId: { type: String, unique: true, sparse: true },
     mfaEnabled: { type: Boolean, default: false },
     mfaSecret: { type: String, select: false },
     failedLoginAttempts: { type: Number, default: 0 },
