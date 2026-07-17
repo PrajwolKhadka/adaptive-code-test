@@ -25,13 +25,6 @@ interface SpendParams {
 }
 
 export class ExpLedger {
-  /**
-   * Earn and spend both run inside a Mongo transaction so the balance
-   * update on User and the ledger row on ExpTransaction commit atomically
-   * — this is the "rollback mechanism" required by section 2.4. If either
-   * write fails, both roll back; no partial state where EXP is deducted
-   * but no ledger row exists (or vice versa).
-   */
   async earn(params: EarnParams) {
     return this.applyTransaction({ ...params, type: "earn" as const });
   }
