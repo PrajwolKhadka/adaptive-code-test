@@ -31,7 +31,12 @@ export class QuestionService {
     // Admin view includes everything: hidden test cases, correct outputs, exposure stats.
     return this.repo.listAll(filter);
   }
-
+  
+  async getByIdForAdmin(id: string) {
+    const question = await this.repo.findById(id);
+    if (!question) throw new AppError("Question not found.", 404);
+    return question;
+  }
   /**
    * Student-facing view. Strips hidden test case expected outputs (so a
    * student can't read the answer key from the API response even though

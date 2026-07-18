@@ -44,4 +44,13 @@ export const questionController = {
       next(err);
     }
   },
+  
+  async getOne(req: Request, res: Response, next: NextFunction) {
+    try {
+      const question = await questionService.getByIdForAdmin(req.params.id);
+      res.status(200).json({ success: true, data: question });
+    } catch (err) {
+      next(err);
+    }
+  },
 };
