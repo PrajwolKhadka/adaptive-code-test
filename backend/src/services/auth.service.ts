@@ -18,6 +18,7 @@ import {
   verifyMfaChallengeToken,
 } from "../utils/token";
 import { generateMfaSecret, buildOtpAuthUrl, verifyTotp } from "../utils/mfa";
+import { decryptSecret } from "../utils/crypto";
 import { verifyCaptcha } from "../utils/captcha";
 import { logActivity } from "../utils/activityLogger";
 import { AppError } from "../middlewares/errorHandler.middleware";
@@ -377,9 +378,15 @@ export class AuthService {
    */
   async setupMfaWithChallenge(mfaChallengeToken: string) {
     const payload = this.mustVerifyChallenge(mfaChallengeToken);
-    const user = await this.userRepo.findById(payload.sub);
+    const user = await this.userRepo.findById(payload.sub, true);
     if (!user) throw new AppError("User not found.", 404);
     if (user.mfaEnabled) throw new AppError("MFA is already enabled for this account. Use the normal login flow.", 400);
+
+    if (user.mfaSecret) {
+      const otpauthUrl = buildOtpAuthUrl(user.email, decryptSecret(user.mfaSecret));
+      return { otpauthUrl };
+    }
+
     return this.generateAndStoreMfaSecret(user._id as Types.ObjectId, user.email);
   }
 

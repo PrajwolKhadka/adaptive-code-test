@@ -299,3 +299,38 @@ export const AttemptModel = model<IAttempt>("Attempt", attemptSchema);
 export const SubmissionJobModel = model<ISubmissionJob>("SubmissionJob", submissionJobSchema);
 export const ExpTransactionModel = model<IExpTransaction>("ExpTransaction", expTransactionSchema);
 export const ActivityLogModel = model<IActivityLog>("ActivityLog", activityLogSchema);
+
+export enum ResourceType {
+  VIDEO = "video",
+  PDF = "pdf",
+}
+
+interface IResource {
+  type: ResourceType;
+  title: string;
+  description: string;
+  youtubeVideoId?: string;
+  storedFileName?: string;
+  originalFileName?: string;
+  fileSizeBytes?: number;
+  uploadedBy: Types.ObjectId;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+const resourceSchema = new Schema<IResource>(
+  {
+    type: { type: String, enum: Object.values(ResourceType), required: true },
+    title: { type: String, required: true },
+    description: { type: String, default: "" },
+    youtubeVideoId: { type: String },
+    storedFileName: { type: String },
+    originalFileName: { type: String },
+    fileSizeBytes: { type: Number },
+    uploadedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    isActive: { type: Boolean, default: true },
+  },
+  { timestamps: { createdAt: true, updatedAt: false } },
+);
+
+export const ResourceModel = model<IResource>("Resource", resourceSchema);
