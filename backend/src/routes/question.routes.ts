@@ -21,5 +21,6 @@ router.post("/", apiLimiter, validateBody(createQuestionSchema), questionControl
 router.patch("/:id", apiLimiter, validateBody(updateQuestionSchema), questionController.update);
 router.delete("/:id", apiLimiter, questionController.remove);
 router.get("/", apiLimiter, questionController.listAdmin);
+router.get("/:id", apiLimiter, questionController.getOne);
 
 export default router;

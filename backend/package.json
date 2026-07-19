@@ -10,6 +10,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@google/genai": "^2.12.0",
     "argon2": "^0.31.2",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
@@ -21,11 +22,13 @@
     "hpp": "^0.2.3",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.3.0",
+    "multer": "^2.2.0",
+    "nodemailer": "^6.9.13",
+    "openai": "^6.48.0",
     "otplib": "^12.0.1",
     "winston": "^3.13.0",
     "zod": "^3.23.0",
-    "zxcvbn": "^4.4.2",
-    "nodemailer": "^6.9.13"
+    "zxcvbn": "^4.4.2"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.7",
@@ -34,12 +37,13 @@
     "@types/hpp": "^0.2.6",
     "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.6",
+    "@types/multer": "^2.2.0",
     "@types/node": "^26.1.1",
+    "@types/nodemailer": "^6.4.15",
     "@types/zxcvbn": "^4.4.4",
     "nodemon": "^3.1.14",
     "ts-jest": "^29.4.11",
     "ts-node": "^10.9.2",
-    "typescript": "^6.0.3",
-    "@types/nodemailer": "^6.4.15"
+    "typescript": "^6.0.3"
   }
 }

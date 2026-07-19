@@ -4,6 +4,11 @@ services:
   mongo:
     image: mongo:7
     restart: unless-stopped
+    # --replSet: multi-document transactions (used by the EXP ledger for
+    # atomic earn/spend + rollback) require a replica set, even a
+    # single-node one. Initialize once with:
+    #   docker compose exec mongo mongosh --eval "rs.initiate()"
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
       - "27017:27017"
     volumes:
@@ -21,7 +26,7 @@ services:
     depends_on:
       - mongo
     ports:
-      - "5000:5000"
+      - "5001:5001"
     networks:
       - internal
       - default
