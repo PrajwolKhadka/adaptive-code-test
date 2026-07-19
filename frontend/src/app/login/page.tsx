@@ -26,8 +26,6 @@ export default function LoginPage() {
         captchaToken: captchaToken || undefined,
       });
 
-      // mfa_challenge_token is set as an HttpOnly cookie by the server —
-      // nothing to store client-side. Just route based on what step comes next.
       if (res.data.mfaSetupRequired) {
         router.push("/mfa/setup");
       } else {
@@ -36,8 +34,7 @@ export default function LoginPage() {
     } catch (err) {
       const message = getApiErrorMessage(err);
       setError(message);
-      // Server returns 400 "CAPTCHA verification required." once an
-      // account has enough recent failed attempts — surface the widget.
+
       if (message.toLowerCase().includes("captcha")) {
         setShowCaptcha(true);
       }

@@ -36,7 +36,7 @@ export default function RegisterPage() {
         <FormField label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
         <FormField label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password" />
         <p className="mb-4 text-xs text-gray-500">
-          At least 12 characters, with uppercase, lowercase, a number, and a special character.
+          At least 8 characters, with uppercase, lowercase, a number, and a special character.
         </p>
         <SubmitButton loading={loading}>Register</SubmitButton>
       </form>
