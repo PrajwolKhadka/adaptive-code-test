@@ -241,6 +241,7 @@ import {
   TestModel,
 } from "../models/index.models";
 import { SubmitAttemptDTO } from "../dtos/test.dto";
+import { classifyTestCaseResult } from "../utils/testCaseStatus";
 
 const QUESTIONS_PER_TEST = 15;
 const TIERS = [
@@ -498,12 +499,43 @@ export class TestService {
       metadata: { testId, questionId: dto.questionId, effectiveCorrectness },
     });
 
+    // return {
+    //   passed: isFullyCorrect,
+    //   effectiveCorrectness,
+    //   testCaseResults: testCaseResults.map((r) => ({ passed: r.passed })), // don't leak stdout/stderr of hidden cases back to client
+    //   thetaAfter,
+    // };
     return {
-      passed: isFullyCorrect,
-      effectiveCorrectness,
-      testCaseResults: testCaseResults.map((r) => ({ passed: r.passed })), // don't leak stdout/stderr of hidden cases back to client
-      thetaAfter,
+  passed: isFullyCorrect,
+  effectiveCorrectness,
+  testCaseResults: testCaseResults.map((r, i) => {
+    const status = classifyTestCaseResult(r);
+    const tc = question.testCases[i] as any;
+
+    const base = {
+      status,
+      passed: r.passed,
     };
+
+    const errorMessage =
+      status === "runtime_error" || status === "timeout"
+        ? (r.stderr || "").slice(0, 1000)
+        : undefined;
+
+    if (!tc.isHidden) {
+      return {
+        ...base,
+        input: tc.input,
+        expectedOutput: tc.expectedOutput,
+        actualOutput: (r.stdout || "").slice(0, 1000),
+        errorMessage,
+      };
+    }
+
+    return { ...base, errorMessage };
+  }),
+  thetaAfter,
+};
   }
   async getStudentStats(studentId: Types.ObjectId) {
     const totalTestsCompleted = await TestModel.countDocuments({
