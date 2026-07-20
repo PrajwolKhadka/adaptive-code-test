@@ -34,7 +34,7 @@ export function createApp(): Application {
     }),
   );
 
-  app.use(express.json({ limit: "100kb" }));
+  app.use(express.json({ limit: "2mb" }));
   app.use(cookieParser());
   app.use(mongoSanitize());
   app.use(hpp());

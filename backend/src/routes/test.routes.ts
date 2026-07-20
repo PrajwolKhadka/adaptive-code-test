@@ -14,6 +14,7 @@ router.use(requireAuth, requireRole(Role.STUDENT));
 
 router.post("/", apiLimiter, testController.start);
 router.get("/:testId/next-question", apiLimiter, testController.nextQuestion);
+router.get("/stats", apiLimiter, testController.stats);
 router.post("/:testId/hint", apiLimiter, validateBody(purchaseHintSchema), testController.purchaseHint);
 router.post("/:testId/attempts", submissionLimiter, validateBody(submitAttemptSchema), testController.submitAttempt);
 router.post("/:testId/finalize", apiLimiter, testController.finalize);

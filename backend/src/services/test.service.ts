@@ -227,14 +227,29 @@ import { QuestionService } from "./question.service";
 import { AiSummaryService } from "./aiSummary.service";
 import { runAgainstTestCases } from "./execution.service";
 import { ExpLedger } from "../utils/expLedger";
-import { computeEffectiveCorrectness, updateTheta, selectNextItem } from "../utils/irt";
+import {
+  computeEffectiveCorrectness,
+  updateTheta,
+  selectNextItem,
+} from "../utils/irt";
 import { AppError } from "../middlewares/errorHandler.middleware";
 import { logActivity } from "../utils/activityLogger";
-import { Difficulty, UserModel } from "../models/index.models";
+import {
+  Difficulty,
+  UserModel,
+  AttemptModel,
+  TestModel,
+} from "../models/index.models";
 import { SubmitAttemptDTO } from "../dtos/test.dto";
 
 const QUESTIONS_PER_TEST = 15;
-const TIERS = [Difficulty.VERY_EASY, Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD, Difficulty.VERY_HARD];
+const TIERS = [
+  Difficulty.VERY_EASY,
+  Difficulty.EASY,
+  Difficulty.MEDIUM,
+  Difficulty.HARD,
+  Difficulty.VERY_HARD,
+];
 const PER_TIER = Math.floor(QUESTIONS_PER_TEST / TIERS.length); // 3 each
 const EXP_PER_CORRECT_ANSWER = 20;
 
@@ -261,9 +276,14 @@ export class TestService {
     for (const tier of TIERS) {
       const available = await this.questionRepo.findActiveByDifficulty(tier);
       if (available.length < PER_TIER) {
-        throw new AppError(`Not enough active questions at difficulty "${tier}" to start a test.`, 500);
+        throw new AppError(
+          `Not enough active questions at difficulty "${tier}" to start a test.`,
+          500,
+        );
       }
-      const shuffled = [...available].sort(() => Math.random() - 0.5).slice(0, PER_TIER);
+      const shuffled = [...available]
+        .sort(() => Math.random() - 0.5)
+        .slice(0, PER_TIER);
       for (const q of shuffled) {
         poolIds.push(q._id as Types.ObjectId);
         await this.questionRepo.incrementExposure(q._id as Types.ObjectId);
@@ -271,39 +291,69 @@ export class TestService {
     }
 
     const test = await this.testRepo.create(studentId, poolIds);
-    await logActivity({ userId: studentId, action: "test_started", ip: ctx.ip, userAgent: ctx.userAgent, metadata: { testId: test._id } });
+    await logActivity({
+      userId: studentId,
+      action: "test_started",
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      metadata: { testId: test._id },
+    });
     return { testId: test._id };
   }
 
   async getNextQuestion(testId: string, studentId: Types.ObjectId) {
     const test = await this.testRepo.findByIdForStudent(testId, studentId);
     if (!test) throw new AppError("Test not found.", 404);
-    if (test.status !== "in_progress") throw new AppError("Test is not in progress.", 400);
+    if (test.status !== "in_progress")
+      throw new AppError("Test is not in progress.", 400);
 
-    const answeredIds = await this.attemptRepo.answeredQuestionIds(test._id as Types.ObjectId);
+    const answeredIds = await this.attemptRepo.answeredQuestionIds(
+      test._id as Types.ObjectId,
+    );
     const answeredSet = new Set(answeredIds.map((id) => id.toString()));
 
-    const remainingIds = test.questionPoolIds.filter((id) => !answeredSet.has(id.toString()));
+    const remainingIds = test.questionPoolIds.filter(
+      (id) => !answeredSet.has(id.toString()),
+    );
     if (remainingIds.length === 0) {
       return { done: true };
     }
 
-    const remainingQuestions = await this.questionRepo.findManyByIds(remainingIds);
+    const remainingQuestions =
+      await this.questionRepo.findManyByIds(remainingIds);
     const user = await this.userRepo.findById(studentId);
     if (!user) throw new AppError("User not found.", 404);
 
-    const nextQuestion = selectNextItem<any>(remainingQuestions as any[], user.theta);
-    const hintsPurchased = await this.expLedger.countHintsPurchased(studentId, test._id as Types.ObjectId, nextQuestion._id as Types.ObjectId);
+    const nextQuestion = selectNextItem<any>(
+      remainingQuestions as any[],
+      user.theta,
+    );
+    const hintsPurchased = await this.expLedger.countHintsPurchased(
+      studentId,
+      test._id as Types.ObjectId,
+      nextQuestion._id as Types.ObjectId,
+    );
 
-    const view = await this.questionService.getForStudent((nextQuestion._id as Types.ObjectId).toString(), hintsPurchased);
+    const view = await this.questionService.getForStudent(
+      (nextQuestion._id as Types.ObjectId).toString(),
+      hintsPurchased,
+    );
     return {
       done: false,
       question: view,
-      progress: { answered: answeredSet.size, total: test.questionPoolIds.length },
+      progress: {
+        answered: answeredSet.size,
+        total: test.questionPoolIds.length,
+      },
     };
   }
 
-  async purchaseHint(testId: string, studentId: Types.ObjectId, questionId: string, ctx: Ctx) {
+  async purchaseHint(
+    testId: string,
+    studentId: Types.ObjectId,
+    questionId: string,
+    ctx: Ctx,
+  ) {
     const test = await this.testRepo.findByIdForStudent(testId, studentId);
     if (!test) throw new AppError("Test not found.", 404);
 
@@ -311,13 +361,19 @@ export class TestService {
     // Ownership check: the question must actually be part of THIS test's
     // snapshotted pool — prevents buying hints for arbitrary question IDs
     // outside the student's assigned set.
-    const inPool = test.questionPoolIds.some((id) => id.toString() === questionId);
+    const inPool = test.questionPoolIds.some(
+      (id) => id.toString() === questionId,
+    );
     if (!inPool) throw new AppError("Question is not part of this test.", 403);
 
     const question = await this.questionRepo.findById(questionId);
     if (!question) throw new AppError("Question not found.", 404);
 
-    const alreadyPurchased = await this.expLedger.countHintsPurchased(studentId, test._id as Types.ObjectId, questionObjectId);
+    const alreadyPurchased = await this.expLedger.countHintsPurchased(
+      studentId,
+      test._id as Types.ObjectId,
+      questionObjectId,
+    );
     if (alreadyPurchased >= question.hints.length) {
       throw new AppError("No more hints available for this question.", 400);
     }
@@ -330,19 +386,36 @@ export class TestService {
       relatedTestId: test._id as Types.ObjectId,
     });
 
-    await logActivity({ userId: studentId, action: "hint_purchased", ip: ctx.ip, userAgent: ctx.userAgent, metadata: { questionId, testId } });
+    await logActivity({
+      userId: studentId,
+      action: "hint_purchased",
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      metadata: { questionId, testId },
+    });
     return { balanceAfter, unlockedHint: question.hints[alreadyPurchased] };
   }
 
-  async submitAttempt(testId: string, studentId: Types.ObjectId, dto: SubmitAttemptDTO, ctx: Ctx) {
+  async submitAttempt(
+    testId: string,
+    studentId: Types.ObjectId,
+    dto: SubmitAttemptDTO,
+    ctx: Ctx,
+  ) {
     const test = await this.testRepo.findByIdForStudent(testId, studentId);
     if (!test) throw new AppError("Test not found.", 404);
-    if (test.status !== "in_progress") throw new AppError("Test is not in progress.", 400);
+    if (test.status !== "in_progress")
+      throw new AppError("Test is not in progress.", 400);
 
-    const inPool = test.questionPoolIds.some((id) => id.toString() === dto.questionId);
+    const inPool = test.questionPoolIds.some(
+      (id) => id.toString() === dto.questionId,
+    );
     if (!inPool) throw new AppError("Question is not part of this test.", 403);
 
-    const alreadyAnswered = await this.attemptRepo.hasAnswered(test._id as Types.ObjectId, new Types.ObjectId(dto.questionId));
+    const alreadyAnswered = await this.attemptRepo.hasAnswered(
+      test._id as Types.ObjectId,
+      new Types.ObjectId(dto.questionId),
+    );
     if (alreadyAnswered) throw new AppError("Question already answered.", 400);
 
     const question = await this.questionRepo.findById(dto.questionId);
@@ -350,19 +423,34 @@ export class TestService {
 
     const testCaseResults = await runAgainstTestCases(
       dto.code,
-      question.testCases.map((tc: any) => ({ input: tc.input, expectedOutput: tc.expectedOutput, weight: tc.weight })),
+      question.testCases.map((tc: any) => ({
+        input: tc.input,
+        expectedOutput: tc.expectedOutput,
+        weight: tc.weight,
+      })),
       question.timeLimitMs,
     );
 
     const questionObjectId = new Types.ObjectId(dto.questionId);
-    const hintsUsed = await this.expLedger.countHintsPurchased(studentId, test._id as Types.ObjectId, questionObjectId);
-    const effectiveCorrectness = computeEffectiveCorrectness(testCaseResults, hintsUsed);
+    const hintsUsed = await this.expLedger.countHintsPurchased(
+      studentId,
+      test._id as Types.ObjectId,
+      questionObjectId,
+    );
+    const effectiveCorrectness = computeEffectiveCorrectness(
+      testCaseResults,
+      hintsUsed,
+    );
 
     const user = await this.userRepo.findById(studentId);
     if (!user) throw new AppError("User not found.", 404);
 
     const thetaBefore = user.theta;
-    const thetaAfter = updateTheta(thetaBefore, question.difficulty, effectiveCorrectness);
+    const thetaAfter = updateTheta(
+      thetaBefore,
+      question.difficulty,
+      effectiveCorrectness,
+    );
 
     const attempt = await this.attemptRepo.create({
       testId: test._id,
@@ -370,7 +458,10 @@ export class TestService {
       questionId: questionObjectId,
       difficultyAtAttempt: question.difficulty,
       submittedCode: dto.code,
-      testCaseResults: testCaseResults.map((r) => ({ passed: r.passed, weight: r.weight })),
+      testCaseResults: testCaseResults.map((r) => ({
+        passed: r.passed,
+        weight: r.weight,
+      })),
       effectiveCorrectness,
       hintsUsed,
       thetaBefore,
@@ -380,8 +471,14 @@ export class TestService {
 
     await UserModel.updateOne({ _id: studentId }, { theta: thetaAfter });
 
-    const answeredSoFar = (await this.attemptRepo.answeredQuestionIds(test._id as Types.ObjectId)).length;
-    await this.testRepo.appendThetaPoint(test._id as Types.ObjectId, answeredSoFar, thetaAfter);
+    const answeredSoFar = (
+      await this.attemptRepo.answeredQuestionIds(test._id as Types.ObjectId)
+    ).length;
+    await this.testRepo.appendThetaPoint(
+      test._id as Types.ObjectId,
+      answeredSoFar,
+      thetaAfter,
+    );
 
     const isFullyCorrect = effectiveCorrectness >= 0.999; // all weighted test cases passed, no hint discount
     if (isFullyCorrect) {
@@ -408,14 +505,86 @@ export class TestService {
       thetaAfter,
     };
   }
+  async getStudentStats(studentId: Types.ObjectId) {
+    const totalTestsCompleted = await TestModel.countDocuments({
+      studentId,
+      status: "completed",
+    });
 
+    const attempts = await AttemptModel.find({ studentId }).sort({
+      createdAt: 1,
+    });
+    const totalAttempts = attempts.length;
+    const correctAttempts = attempts.filter(
+      (a) => a.effectiveCorrectness >= 0.999,
+    ).length;
+    const accuracyPercent =
+      totalAttempts > 0 ? (correctAttempts / totalAttempts) * 100 : 0;
+
+    const byTest = new Map<
+      string,
+      {
+        correct: number;
+        total: number;
+        lastCompletedAt?: Date;
+        lastTheta: number;
+      }
+    >();
+    for (const a of attempts) {
+      const key = a.testId.toString();
+      const entry = byTest.get(key) ?? { correct: 0, total: 0, lastTheta: 0 };
+      entry.total += 1;
+      if (a.effectiveCorrectness >= 0.999) entry.correct += 1;
+      entry.lastTheta = a.thetaAfter;
+      byTest.set(key, entry);
+    }
+
+    const perTestScores = Array.from(byTest.values()).map((t) =>
+      t.total > 0 ? (t.correct / t.total) * 100 : 0,
+    );
+    const averageScorePercent =
+      perTestScores.length > 0
+        ? perTestScores.reduce((sum, s) => sum + s, 0) / perTestScores.length
+        : 0;
+
+    const recentTests = await TestModel.find({ studentId, status: "completed" })
+      .sort({ completedAt: -1 })
+      .limit(5)
+      .select("_id completedAt");
+
+    const recentTestSummaries = recentTests.map((t) => {
+      const stats = byTest.get((t._id as Types.ObjectId).toString());
+      return {
+        testId: t._id,
+        completedAt: t.completedAt,
+        scorePercent:
+          stats && stats.total > 0
+            ? Math.round((stats.correct / stats.total) * 100)
+            : 0,
+        finalTheta: stats?.lastTheta ?? 0,
+      };
+    });
+
+    return {
+      totalTestsCompleted,
+      totalAttempts,
+      accuracyPercent: Math.round(accuracyPercent),
+      averageScorePercent: Math.round(averageScorePercent),
+      recentTests: recentTestSummaries,
+    };
+  }
   async finalizeTest(testId: string, studentId: Types.ObjectId, ctx: Ctx) {
     const test = await this.testRepo.findByIdForStudent(testId, studentId);
     if (!test) throw new AppError("Test not found.", 404);
 
-    const attempts = await this.attemptRepo.findByTest(test._id as Types.ObjectId);
-    const correctCount = attempts.filter((a: any) => a.effectiveCorrectness >= 0.999).length;
-    const finalTheta = attempts.length > 0 ? attempts[attempts.length - 1].thetaAfter : 0;
+    const attempts = await this.attemptRepo.findByTest(
+      test._id as Types.ObjectId,
+    );
+    const correctCount = attempts.filter(
+      (a: any) => a.effectiveCorrectness >= 0.999,
+    ).length;
+    const finalTheta =
+      attempts.length > 0 ? attempts[attempts.length - 1].thetaAfter : 0;
 
     // Idempotent: if this test was already finalized (e.g. the client
     // calls finalize both when the test page detects "done" AND again on
@@ -423,10 +592,18 @@ export class TestService {
     // throwing — avoids a broken results page AND avoids paying for a
     // second AI API call for the same test.
     if (test.status === "completed") {
-      return { totalQuestions: attempts.length, correctCount, finalTheta, aiSummary: test.aiSummary ?? "" };
+      return {
+        totalQuestions: attempts.length,
+        correctCount,
+        finalTheta,
+        aiSummary: test.aiSummary ?? "",
+      };
     }
 
-    const hintsUsedTotal = attempts.reduce((sum: number, a: any) => sum + a.hintsUsed, 0);
+    const hintsUsedTotal = attempts.reduce(
+      (sum: number, a: any) => sum + a.hintsUsed,
+      0,
+    );
 
     const aiSummary = await this.aiSummaryService.generateSummary({
       totalQuestions: attempts.length,
@@ -437,7 +614,13 @@ export class TestService {
     });
 
     await this.testRepo.complete(test._id as Types.ObjectId, aiSummary);
-    await logActivity({ userId: studentId, action: "test_completed", ip: ctx.ip, userAgent: ctx.userAgent, metadata: { testId } });
+    await logActivity({
+      userId: studentId,
+      action: "test_completed",
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      metadata: { testId },
+    });
 
     return {
       totalQuestions: attempts.length,
