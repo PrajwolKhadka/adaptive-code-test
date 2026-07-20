@@ -21,6 +21,8 @@ export const createQuestionSchema = z.object({
 });
 export type CreateQuestionDTO = z.infer<typeof createQuestionSchema>;
 
-// Partial of create — admin edits don't have to touch every field.
 export const updateQuestionSchema = createQuestionSchema.partial();
 export type UpdateQuestionDTO = z.infer<typeof updateQuestionSchema>;
+
+export const bulkImportQuestionsSchema = z.array(createQuestionSchema).min(1).max(200);
+export type BulkImportQuestionsDTO = z.infer<typeof bulkImportQuestionsSchema>;
