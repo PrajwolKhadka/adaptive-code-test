@@ -56,7 +56,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
               href={link.href}
               className={`block rounded-md px-3 py-2 text-sm font-medium ${
                 active
-                  ? "bg-gray-900 text-white"
+                  ? "bg-cyan-600 text-white"
                   : "text-gray-700 hover:bg-gray-100"
               }`}
             >
@@ -70,7 +70,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
         <p className="mb-2 truncate text-xs text-gray-500">{user.email}</p>
         <button
           onClick={handleLogout}
-          className="text-xs font-medium text-gray-500 underline hover:text-gray-700"
+          className="text-xs font-medium text-red-500 underline hover:text-red-900"
         >
           Log out
         </button>
