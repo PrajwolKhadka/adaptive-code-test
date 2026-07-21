@@ -11,6 +11,8 @@ import {
 import { AppError } from "../middlewares/errorHandler.middleware";
 import { Types } from "mongoose";
 import { buildGoogleAuthUrl, exchangeGoogleCode, buildGithubAuthUrl, exchangeGithubCode, generateOAuthState } from "../utils/oauth";
+import { AvatarService } from "../services/avatar.service";
+const avatarService = new AvatarService();
 
 const authService = new AuthService();
 
@@ -234,4 +236,23 @@ export const authController = {
       next(err);
     }
   },
+
+  async uploadAvatar(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.file) throw new AppError("No image file provided.", 400);
+    const result = await avatarService.upload(new Types.ObjectId(req.user!.id), req.file, getCtx(req));
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+},
+
+async removeAvatar(req: Request, res: Response, next: NextFunction) {
+  try {
+    await avatarService.remove(new Types.ObjectId(req.user!.id), getCtx(req));
+    res.status(200).json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+},
 };
