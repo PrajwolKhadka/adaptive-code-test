@@ -20,6 +20,9 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 COPY package*.json ./
 RUN npm ci --omit=dev
+RUN mkdir -p /app/logs \
+    && mkdir -p /app/uploads/resources \
+    && chown -R appuser:appgroup /app/logs /app/uploads
 COPY --from=build /app/dist ./dist
 
 USER appuser
