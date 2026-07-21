@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Adaptive Code Platform",
+  title: "Maanak-Coding Platform",
   description: "IRT-adaptive coding practice platform",
 };
 
