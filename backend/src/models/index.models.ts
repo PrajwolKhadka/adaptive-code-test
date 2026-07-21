@@ -27,9 +27,15 @@ export enum SubmissionStatus {
   PASSED = "passed",
   FAILED = "failed",
   PARTIAL = "partial",
-  ERROR = "error", 
+  ERROR = "error",
   TIMEOUT = "timeout",
   REJECTED = "rejected", // failed static pre-checks before even running
+}
+interface IUserAvatar {
+  storedFileName: string;
+  mimeType: "image/png" | "image/jpeg";
+  fileSizeBytes: number;
+  updatedAt: Date;
 }
 
 interface IUser {
@@ -42,6 +48,7 @@ interface IUser {
   emailVerificationOtpHash?: string;
   emailVerificationOtpExpiresAt?: Date;
   emailVerificationAttempts: number;
+  avatar?: IUserAvatar;
   googleId?: string;
   githubId?: string;
   mfaEnabled: boolean;
@@ -56,7 +63,13 @@ interface IUser {
 
 const userSchema = new Schema<IUser>(
   {
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
     passwordHash: { type: String, select: false },
     passwordHistory: { type: [String], default: [], select: false },
     passwordChangedAt: { type: Date, default: Date.now },
@@ -65,6 +78,12 @@ const userSchema = new Schema<IUser>(
     emailVerificationOtpHash: { type: String, select: false },
     emailVerificationOtpExpiresAt: { type: Date, select: false },
     emailVerificationAttempts: { type: Number, default: 0, select: false },
+    avatar: {
+      storedFileName: { type: String },
+      mimeType: { type: String, enum: ["image/png", "image/jpeg"] },
+      fileSizeBytes: { type: Number },
+      updatedAt: { type: Date },
+    },
     googleId: { type: String, unique: true, sparse: true },
     githubId: { type: String, unique: true, sparse: true },
     mfaEnabled: { type: Boolean, default: false },
@@ -106,7 +125,11 @@ const questionSchema = new Schema<IQuestion>(
   {
     title: { type: String, required: true },
     prompt: { type: String, required: true },
-    difficulty: { type: String, enum: Object.values(Difficulty), required: true },
+    difficulty: {
+      type: String,
+      enum: Object.values(Difficulty),
+      required: true,
+    },
     language: { type: String, default: "python" },
     starterCode: { type: String, default: "" },
     testCases: [
@@ -130,7 +153,7 @@ const questionSchema = new Schema<IQuestion>(
 
 interface ITest {
   studentId: Types.ObjectId;
-  questionPoolIds: Types.ObjectId[]; 
+  questionPoolIds: Types.ObjectId[];
   status: "in_progress" | "completed" | "abandoned";
   thetaTrajectory: { afterQuestionIndex: number; theta: number }[];
   startedAt: Date;
@@ -140,9 +163,18 @@ interface ITest {
 
 const testSchema = new Schema<ITest>(
   {
-    studentId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    studentId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
     questionPoolIds: [{ type: Schema.Types.ObjectId, ref: "Question" }],
-    status: { type: String, enum: ["in_progress", "completed", "abandoned"], default: "in_progress" },
+    status: {
+      type: String,
+      enum: ["in_progress", "completed", "abandoned"],
+      default: "in_progress",
+    },
     thetaTrajectory: [
       {
         afterQuestionIndex: Number,
@@ -173,10 +205,28 @@ interface IAttempt {
 
 const attemptSchema = new Schema<IAttempt>(
   {
-    testId: { type: Schema.Types.ObjectId, ref: "Test", required: true, index: true },
-    studentId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    questionId: { type: Schema.Types.ObjectId, ref: "Question", required: true },
-    difficultyAtAttempt: { type: String, enum: Object.values(Difficulty), required: true },
+    testId: {
+      type: Schema.Types.ObjectId,
+      ref: "Test",
+      required: true,
+      index: true,
+    },
+    studentId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    questionId: {
+      type: Schema.Types.ObjectId,
+      ref: "Question",
+      required: true,
+    },
+    difficultyAtAttempt: {
+      type: String,
+      enum: Object.values(Difficulty),
+      required: true,
+    },
     submittedCode: { type: String, required: true },
     testCaseResults: [{ passed: Boolean, weight: Number }],
     effectiveCorrectness: { type: Number, required: true },
@@ -196,7 +246,12 @@ interface ISubmissionJob {
   questionId: Types.ObjectId;
   code: string;
   status: SubmissionStatus;
-  result?: { passed: boolean; weight: number; stdout?: string; stderr?: string }[];
+  result?: {
+    passed: boolean;
+    weight: number;
+    stdout?: string;
+    stderr?: string;
+  }[];
   errorMessage?: string;
   requestedAt: Date;
   startedAt?: Date;
@@ -205,10 +260,19 @@ interface ISubmissionJob {
 
 const submissionJobSchema = new Schema<ISubmissionJob>({
   attemptId: { type: Schema.Types.ObjectId, ref: "Attempt" },
-  studentId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+  studentId: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    index: true,
+  },
   questionId: { type: Schema.Types.ObjectId, ref: "Question", required: true },
   code: { type: String, required: true },
-  status: { type: String, enum: Object.values(SubmissionStatus), default: SubmissionStatus.QUEUED },
+  status: {
+    type: String,
+    enum: Object.values(SubmissionStatus),
+    default: SubmissionStatus.QUEUED,
+  },
   result: [{ passed: Boolean, weight: Number, stdout: String, stderr: String }],
   errorMessage: { type: String },
   requestedAt: { type: Date, default: Date.now },
@@ -230,10 +294,19 @@ interface IExpTransaction {
 
 const expTransactionSchema = new Schema<IExpTransaction>(
   {
-    studentId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    studentId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
     type: { type: String, enum: ["earn", "spend"], required: true },
     amount: { type: Number, required: true, min: 0 },
-    reason: { type: String, enum: ["attempt_correct", "hint_purchase", "admin_adjustment"], required: true },
+    reason: {
+      type: String,
+      enum: ["attempt_correct", "hint_purchase", "admin_adjustment"],
+      required: true,
+    },
     relatedAttemptId: { type: Schema.Types.ObjectId, ref: "Attempt" },
     relatedQuestionId: { type: Schema.Types.ObjectId, ref: "Question" },
     balanceAfter: { type: Number, required: true },
@@ -259,7 +332,11 @@ const activityLogSchema = new Schema<IActivityLog>(
     ip: { type: String, required: true },
     userAgent: { type: String },
     metadata: { type: Schema.Types.Mixed },
-    severity: { type: String, enum: ["info", "warn", "alert"], default: "info" },
+    severity: {
+      type: String,
+      enum: ["info", "warn", "alert"],
+      default: "info",
+    },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
@@ -278,7 +355,12 @@ interface ISession {
 
 const sessionSchema = new Schema<ISession>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
     refreshTokenHash: { type: String, required: true, unique: true },
     userAgentHash: { type: String, required: true },
     ip: { type: String, required: true },
@@ -296,9 +378,18 @@ export const UserModel = model<IUser>("User", userSchema);
 export const QuestionModel = model<IQuestion>("Question", questionSchema);
 export const TestModel = model<ITest>("Test", testSchema);
 export const AttemptModel = model<IAttempt>("Attempt", attemptSchema);
-export const SubmissionJobModel = model<ISubmissionJob>("SubmissionJob", submissionJobSchema);
-export const ExpTransactionModel = model<IExpTransaction>("ExpTransaction", expTransactionSchema);
-export const ActivityLogModel = model<IActivityLog>("ActivityLog", activityLogSchema);
+export const SubmissionJobModel = model<ISubmissionJob>(
+  "SubmissionJob",
+  submissionJobSchema,
+);
+export const ExpTransactionModel = model<IExpTransaction>(
+  "ExpTransaction",
+  expTransactionSchema,
+);
+export const ActivityLogModel = model<IActivityLog>(
+  "ActivityLog",
+  activityLogSchema,
+);
 
 export enum ResourceType {
   VIDEO = "video",
