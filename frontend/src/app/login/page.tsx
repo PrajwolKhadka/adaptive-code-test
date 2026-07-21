@@ -68,9 +68,9 @@ export default function LoginPage() {
         <SubmitButton loading={loading || (showCaptcha && !captchaToken)}>Log in</SubmitButton>
       </form>
       <OAuthButtons />
-      <p className="mt-4 text-center text-sm text-gray-600">
+      <p className="mt-4 text-center text-sm text-white">
         Don&apos;t have an account?{" "}
-        <a href="/register" className="font-medium text-gray-900 underline">
+        <a href="/register" className="font-medium text-white underline">
           Register
         </a>
       </p>

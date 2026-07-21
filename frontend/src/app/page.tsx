@@ -29,7 +29,7 @@ export default function Home() {
       <nav className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-12">
         <a href="/" className="flex items-center">
           <img
-            src="/logo.png"
+            src="/logo3.png"
             alt="Adaptive Code Platform"
             className="h-10 w-auto object-contain sm:h-10"
           />
@@ -323,7 +323,7 @@ export default function Home() {
       <footer className="mx-auto flex max-w-7xl flex-col gap-5 border-t border-slate-100 px-5 py-9 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
         <a href="/" className="flex items-center">
           <img
-            src="/logo.png"
+            src="/logo3.png"
             alt="Adaptive Code Platform"
             className="h-7 w-auto object-contain"
           />

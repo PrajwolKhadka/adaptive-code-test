@@ -118,9 +118,9 @@ export function Sidebar({ user }: { user: CurrentUser }) {
   return (
     <aside className="flex h-screen w-56 flex-col border-r border-gray-200 bg-white">
       <div className="flex items-center gap-2 border-b border-gray-200 px-4 py-4">
-        <div className="flex items-center border-b border-gray-200 px-4 py-4">
+        <div className="flex items-center px-10 py-3">
           <img
-            src="/logo.png"
+            src="/logo3.png"
             alt="Adaptive Code Platform"
             className="h-9 w-auto object-contain"
           />
