@@ -23,7 +23,13 @@ import { verifyCaptcha } from "../utils/captcha";
 import { logActivity } from "../utils/activityLogger";
 import { AppError } from "../middlewares/errorHandler.middleware";
 import { Role } from "../models/index.models";
-import { generateNumericOtp, hashOtp, verifyOtpHash, otpExpiresAt, MAX_OTP_ATTEMPTS } from "../utils/otp";
+import {
+  generateNumericOtp,
+  hashOtp,
+  verifyOtpHash,
+  otpExpiresAt,
+  MAX_OTP_ATTEMPTS,
+} from "../utils/otp";
 import { sendEmail, otpEmailTemplate } from "../utils/email";
 import { OAuthProfile } from "../utils/oauth";
 
@@ -46,7 +52,10 @@ export class AuthService {
       // Deliberately vague — do not reveal whether the email is registered.
       // A distinct "email already exists" message is a classic user-
       // enumeration vector.
-      throw new AppError("Unable to complete registration with the provided details.", 400);
+      throw new AppError(
+        "Unable to complete registration with the provided details.",
+        400,
+      );
     }
 
     assertPasswordPolicy(password, [email]);
@@ -58,18 +67,33 @@ export class AuthService {
       passwordHistory: [passwordHash],
     });
 
-    await this.issueAndSendVerificationOtp(user._id as Types.ObjectId, user.email);
+    await this.issueAndSendVerificationOtp(
+      user._id as Types.ObjectId,
+      user.email,
+    );
 
-    await logActivity({ userId: user._id as Types.ObjectId, action: "register", ip: ctx.ip, userAgent: ctx.userAgent });
+    await logActivity({
+      userId: user._id as Types.ObjectId,
+      action: "register",
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
 
     // No session issued — the account exists but is unusable until the
     // email is verified (see login()'s isEmailVerified check).
     return { id: user._id, email: user.email };
   }
 
-  private async issueAndSendVerificationOtp(userId: Types.ObjectId, email: string) {
+  private async issueAndSendVerificationOtp(
+    userId: Types.ObjectId,
+    email: string,
+  ) {
     const otp = generateNumericOtp();
-    await this.userRepo.setEmailVerificationOtp(userId, hashOtp(otp), otpExpiresAt());
+    await this.userRepo.setEmailVerificationOtp(
+      userId,
+      hashOtp(otp),
+      otpExpiresAt(),
+    );
     await sendEmail(email, "Verify your email", otpEmailTemplate(otp));
   }
 
@@ -85,22 +109,40 @@ export class AuthService {
     }
 
     if ((user.emailVerificationAttempts ?? 0) >= MAX_OTP_ATTEMPTS) {
-      throw new AppError("Too many attempts. Request a new verification code.", 429);
+      throw new AppError(
+        "Too many attempts. Request a new verification code.",
+        429,
+      );
     }
 
-    if (!user.emailVerificationOtpHash || !user.emailVerificationOtpExpiresAt || user.emailVerificationOtpExpiresAt < new Date()) {
+    if (
+      !user.emailVerificationOtpHash ||
+      !user.emailVerificationOtpExpiresAt ||
+      user.emailVerificationOtpExpiresAt < new Date()
+    ) {
       throw new AppError("Verification code expired. Request a new one.", 400);
     }
 
     const valid = verifyOtpHash(otp, user.emailVerificationOtpHash);
     if (!valid) {
       await this.userRepo.incrementEmailOtpAttempts(user._id as Types.ObjectId);
-      await logActivity({ userId: user._id as Types.ObjectId, action: "email_verify_failed", ip: ctx.ip, userAgent: ctx.userAgent, severity: "warn" });
+      await logActivity({
+        userId: user._id as Types.ObjectId,
+        action: "email_verify_failed",
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        severity: "warn",
+      });
       throw new AppError("Invalid or expired verification code.", 400);
     }
 
     await this.userRepo.markEmailVerified(user._id as Types.ObjectId);
-    await logActivity({ userId: user._id as Types.ObjectId, action: "email_verified", ip: ctx.ip, userAgent: ctx.userAgent });
+    await logActivity({
+      userId: user._id as Types.ObjectId,
+      action: "email_verified",
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
   }
 
   async resendVerification(email: string, ctx: RequestContext) {
@@ -110,8 +152,16 @@ export class AuthService {
     // Route-level rate limiting (authLimiter) is what actually stops abuse,
     // not this response shape.
     if (user && !user.isEmailVerified) {
-      await this.issueAndSendVerificationOtp(user._id as Types.ObjectId, user.email);
-      await logActivity({ userId: user._id as Types.ObjectId, action: "verification_resent", ip: ctx.ip, userAgent: ctx.userAgent });
+      await this.issueAndSendVerificationOtp(
+        user._id as Types.ObjectId,
+        user.email,
+      );
+      await logActivity({
+        userId: user._id as Types.ObjectId,
+        action: "verification_resent",
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+      });
     }
   }
 
@@ -124,18 +174,35 @@ export class AuthService {
    *   then /auth/mfa/confirm-with-challenge, which enrolls AND completes
    *   login in one step.
    */
-  async login(email: string, password: string, captchaToken: string | undefined, ctx: RequestContext) {
+  async login(
+    email: string,
+    password: string,
+    captchaToken: string | undefined,
+    ctx: RequestContext,
+  ) {
     const user = await this.userRepo.findByEmail(email, true);
-
+    console.log("Before login:", {
+    failedLoginAttempts: user?.failedLoginAttempts,
+    lockedUntil: user?.lockedUntil,
+});
     // Constant-shape response whether the user exists or not: always run
     // a verify() call (against a dummy hash if no user, or if the account
     // is OAuth-only and has no password) so response timing doesn't leak
     // account existence via a timing side channel.
-    const DUMMY_HASH = "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQ$ZmFrZWhhc2hmb3J0aW1pbmc";
-    const passwordOk = await verifyPassword(user?.passwordHash ?? DUMMY_HASH, password);
+    const DUMMY_HASH =
+      "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQ$ZmFrZWhhc2hmb3J0aW1pbmc";
+    const passwordOk = await verifyPassword(
+      user?.passwordHash ?? DUMMY_HASH,
+      password,
+    );
 
     if (!user) {
-      await logActivity({ action: "login_failed_unknown_email", ip: ctx.ip, userAgent: ctx.userAgent, severity: "warn" });
+      await logActivity({
+        action: "login_failed_unknown_email",
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        severity: "warn",
+      });
       throw new AppError("Invalid email or password.", 401);
     }
 
@@ -147,21 +214,57 @@ export class AuthService {
         userAgent: ctx.userAgent,
         severity: "warn",
       });
-      throw new AppError("Account temporarily locked due to repeated failed attempts.", 423);
+      throw new AppError(
+        "Account temporarily locked due to repeated failed attempts.",
+        423,
+      );
     }
 
     // CAPTCHA required once an account has racked up enough recent failures —
     // a proxy for "this login attempt is high-risk" without requiring it
     // for every legitimate user on every login.
+    console.log("CAPTCHA CHECK", {
+  attempts: user.failedLoginAttempts,
+  threshold: CAPTCHA_TRIGGER_THRESHOLD,
+});
     if (user.failedLoginAttempts >= CAPTCHA_TRIGGER_THRESHOLD) {
+      console.log("INSIDE CAPTCHA BLOCK");
       const captchaOk = await verifyCaptcha(captchaToken, ctx.ip);
+      console.log("captchaOk =", captchaOk);
       if (!captchaOk) {
         throw new AppError("CAPTCHA verification required.", 400);
       }
     }
 
+    // if (!passwordOk) {
+    //   await this.userRepo.incrementFailedAttempts(
+    //     user._id as Types.ObjectId,
+    //     LOCK_THRESHOLD,
+    //     LOCK_DURATION_MS,
+    //   );
+    //   await logActivity({
+    //     userId: user._id as Types.ObjectId,
+    //     action: "login_failed_bad_password",
+    //     ip: ctx.ip,
+    //     userAgent: ctx.userAgent,
+    //     severity: "warn",
+    //   });
+    //   throw new AppError("Invalid email or password.", 401);
+    // }
     if (!passwordOk) {
-      await this.userRepo.incrementFailedAttempts(user._id as Types.ObjectId, LOCK_THRESHOLD, LOCK_DURATION_MS);
+      await this.userRepo.incrementFailedAttempts(
+        user._id as Types.ObjectId,
+        LOCK_THRESHOLD,
+        LOCK_DURATION_MS,
+      );
+
+      const updatedUser = await this.userRepo.findByEmail(email, true);
+
+      console.log("After increment:", {
+        failedLoginAttempts: updatedUser?.failedLoginAttempts,
+        lockedUntil: updatedUser?.lockedUntil,
+      });
+
       await logActivity({
         userId: user._id as Types.ObjectId,
         action: "login_failed_bad_password",
@@ -169,6 +272,7 @@ export class AuthService {
         userAgent: ctx.userAgent,
         severity: "warn",
       });
+
       throw new AppError("Invalid email or password.", 401);
     }
 
@@ -181,13 +285,20 @@ export class AuthService {
     if (isPasswordExpired(user.passwordChangedAt)) {
       // Signal to the client to force a password-change flow rather than
       // issuing a session — do not silently let an expired password through.
-      throw new AppError("Password expired. Please reset your password to continue.", 403);
+      throw new AppError(
+        "Password expired. Please reset your password to continue.",
+        403,
+      );
     }
 
-    const mfaChallengeToken = signMfaChallengeToken((user._id as Types.ObjectId).toString());
+    const mfaChallengeToken = signMfaChallengeToken(
+      (user._id as Types.ObjectId).toString(),
+    );
     await logActivity({
       userId: user._id as Types.ObjectId,
-      action: user.mfaEnabled ? "login_password_ok_awaiting_mfa" : "login_password_ok_awaiting_mfa_setup",
+      action: user.mfaEnabled
+        ? "login_password_ok_awaiting_mfa"
+        : "login_password_ok_awaiting_mfa_setup",
       ip: ctx.ip,
       userAgent: ctx.userAgent,
     });
@@ -202,35 +313,60 @@ export class AuthService {
    * mandatory-MFA challenge as password login — OAuth authenticates WHO
    * the user is, but doesn't substitute for this app's own 2FA requirement.
    */
-  async loginOrRegisterOAuth(provider: "google" | "github", profile: OAuthProfile, ctx: RequestContext) {
+  async loginOrRegisterOAuth(
+    provider: "google" | "github",
+    profile: OAuthProfile,
+    ctx: RequestContext,
+  ) {
     if (!profile.emailVerified) {
-      throw new AppError("Your email address is not verified with the provider. Please verify it there first.", 403);
+      throw new AppError(
+        "Your email address is not verified with the provider. Please verify it there first.",
+        403,
+      );
     }
 
-    const findByProviderId = provider === "google" ? this.userRepo.findByGoogleId : this.userRepo.findByGithubId;
+    const findByProviderId =
+      provider === "google"
+        ? this.userRepo.findByGoogleId
+        : this.userRepo.findByGithubId;
     let user = await findByProviderId.call(this.userRepo, profile.providerId);
 
     if (!user) {
       const existingByEmail = await this.userRepo.findByEmail(profile.email);
       if (existingByEmail) {
         // Link rather than duplicate — same human, different login method.
-        await this.userRepo.linkOAuthProvider(existingByEmail._id as Types.ObjectId, provider, profile.providerId);
+        await this.userRepo.linkOAuthProvider(
+          existingByEmail._id as Types.ObjectId,
+          provider,
+          profile.providerId,
+        );
         // Provider already verified this email, so it's safe to also mark
         // isEmailVerified on the linked account, even if it was pending.
         if (!existingByEmail.isEmailVerified) {
-          await this.userRepo.markEmailVerified(existingByEmail._id as Types.ObjectId);
+          await this.userRepo.markEmailVerified(
+            existingByEmail._id as Types.ObjectId,
+          );
         }
         user = existingByEmail;
       } else {
-        user = await this.userRepo.createOAuthAccount({ email: profile.email, provider, providerId: profile.providerId });
+        user = await this.userRepo.createOAuthAccount({
+          email: profile.email,
+          provider,
+          providerId: profile.providerId,
+        });
       }
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new AppError("Account temporarily locked due to repeated failed attempts.", 423);
+      throw new AppError(
+        "Account temporarily locked due to repeated failed attempts.",
+        423,
+      );
     }
 
-    const mfaChallengeToken = signMfaChallengeToken((user._id as Types.ObjectId).toString());
+    const mfaChallengeToken = signMfaChallengeToken(
+      (user._id as Types.ObjectId).toString(),
+    );
     await logActivity({
       userId: user._id as Types.ObjectId,
       action: `oauth_login_${provider}`,
@@ -240,12 +376,19 @@ export class AuthService {
     return { mfaSetupRequired: !user.mfaEnabled, mfaChallengeToken };
   }
 
-  async verifyMfaAndIssueSession(mfaChallengeToken: string, totpCode: string, ctx: RequestContext) {
+  async verifyMfaAndIssueSession(
+    mfaChallengeToken: string,
+    totpCode: string,
+    ctx: RequestContext,
+  ) {
     let payload;
     try {
       payload = verifyMfaChallengeToken(mfaChallengeToken);
     } catch {
-      throw new AppError("MFA challenge expired or invalid. Please log in again.", 401);
+      throw new AppError(
+        "MFA challenge expired or invalid. Please log in again.",
+        401,
+      );
     }
 
     const user = await this.userRepo.findById(payload.sub, true);
@@ -255,17 +398,36 @@ export class AuthService {
 
     const valid = verifyTotp(totpCode, user.mfaSecret);
     if (!valid) {
-      await logActivity({ userId: user._id as Types.ObjectId, action: "mfa_verify_failed", ip: ctx.ip, userAgent: ctx.userAgent, severity: "warn" });
+      await logActivity({
+        userId: user._id as Types.ObjectId,
+        action: "mfa_verify_failed",
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        severity: "warn",
+      });
       throw new AppError("Invalid authentication code.", 401);
     }
 
-    const session = await this.issueSession(user._id as Types.ObjectId, user.role, ctx);
-    await logActivity({ userId: user._id as Types.ObjectId, action: "mfa_verify_success", ip: ctx.ip, userAgent: ctx.userAgent });
+    const session = await this.issueSession(
+      user._id as Types.ObjectId,
+      user.role,
+      ctx,
+    );
+    await logActivity({
+      userId: user._id as Types.ObjectId,
+      action: "mfa_verify_success",
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
     return session;
   }
 
   /** Issues a new access token + refresh token pair and persists the session. */
-  private async issueSession(userId: Types.ObjectId, role: Role, ctx: RequestContext) {
+  private async issueSession(
+    userId: Types.ObjectId,
+    role: Role,
+    ctx: RequestContext,
+  ) {
     const refreshToken = generateRefreshToken();
     const session = await this.sessionRepo.create({
       userId,
@@ -274,7 +436,11 @@ export class AuthService {
       ip: ctx.ip,
     });
 
-    const accessToken = signAccessToken({ sub: userId.toString(), role, sid: (session._id as Types.ObjectId).toString() });
+    const accessToken = signAccessToken({
+      sub: userId.toString(),
+      role,
+      sid: (session._id as Types.ObjectId).toString(),
+    });
     return { accessToken, refreshToken };
   }
 
@@ -333,7 +499,10 @@ export class AuthService {
       userAgentHash: hashUserAgent(ctx.userAgent),
       ip: ctx.ip,
     });
-    await this.sessionRepo.markUsedAndChain(session._id as Types.ObjectId, newSession._id as Types.ObjectId);
+    await this.sessionRepo.markUsedAndChain(
+      session._id as Types.ObjectId,
+      newSession._id as Types.ObjectId,
+    );
 
     const accessToken = signAccessToken({
       sub: session.userId.toString(),
@@ -345,7 +514,9 @@ export class AuthService {
   }
 
   async logout(refreshToken: string) {
-    const session = await this.sessionRepo.findByTokenHash(hashRefreshToken(refreshToken));
+    const session = await this.sessionRepo.findByTokenHash(
+      hashRefreshToken(refreshToken),
+    );
     if (session) {
       await this.sessionRepo.revoke(session._id as Types.ObjectId);
     }
@@ -380,14 +551,24 @@ export class AuthService {
     const payload = this.mustVerifyChallenge(mfaChallengeToken);
     const user = await this.userRepo.findById(payload.sub, true);
     if (!user) throw new AppError("User not found.", 404);
-    if (user.mfaEnabled) throw new AppError("MFA is already enabled for this account. Use the normal login flow.", 400);
+    if (user.mfaEnabled)
+      throw new AppError(
+        "MFA is already enabled for this account. Use the normal login flow.",
+        400,
+      );
 
     if (user.mfaSecret) {
-      const otpauthUrl = buildOtpAuthUrl(user.email, decryptSecret(user.mfaSecret));
+      const otpauthUrl = buildOtpAuthUrl(
+        user.email,
+        decryptSecret(user.mfaSecret),
+      );
       return { otpauthUrl };
     }
 
-    return this.generateAndStoreMfaSecret(user._id as Types.ObjectId, user.email);
+    return this.generateAndStoreMfaSecret(
+      user._id as Types.ObjectId,
+      user.email,
+    );
   }
 
   /**
@@ -395,21 +576,44 @@ export class AuthService {
    * this is the only path that turns an mfaChallengeToken into a real
    * session for a user who didn't have MFA enrolled yet.
    */
-  async confirmMfaWithChallenge(mfaChallengeToken: string, totpCode: string, ctx: RequestContext) {
+  async confirmMfaWithChallenge(
+    mfaChallengeToken: string,
+    totpCode: string,
+    ctx: RequestContext,
+  ) {
     const payload = this.mustVerifyChallenge(mfaChallengeToken);
     const user = await this.userRepo.findById(payload.sub, true);
     if (!user?.mfaSecret) throw new AppError("MFA setup not initiated.", 400);
-    if (user.mfaEnabled) throw new AppError("MFA is already enabled for this account. Use the normal login flow.", 400);
+    if (user.mfaEnabled)
+      throw new AppError(
+        "MFA is already enabled for this account. Use the normal login flow.",
+        400,
+      );
 
     const valid = verifyTotp(totpCode, user.mfaSecret);
     if (!valid) {
-      await logActivity({ userId: user._id as Types.ObjectId, action: "mfa_enroll_confirm_failed", ip: ctx.ip, userAgent: ctx.userAgent, severity: "warn" });
+      await logActivity({
+        userId: user._id as Types.ObjectId,
+        action: "mfa_enroll_confirm_failed",
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        severity: "warn",
+      });
       throw new AppError("Invalid authentication code.", 401);
     }
 
     await this.userRepo.enableMfa(user._id as Types.ObjectId);
-    const session = await this.issueSession(user._id as Types.ObjectId, user.role, ctx);
-    await logActivity({ userId: user._id as Types.ObjectId, action: "mfa_enrolled_and_logged_in", ip: ctx.ip, userAgent: ctx.userAgent });
+    const session = await this.issueSession(
+      user._id as Types.ObjectId,
+      user.role,
+      ctx,
+    );
+    await logActivity({
+      userId: user._id as Types.ObjectId,
+      action: "mfa_enrolled_and_logged_in",
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
     return session;
   }
 
@@ -421,7 +625,10 @@ export class AuthService {
     }
   }
 
-  private async generateAndStoreMfaSecret(userId: Types.ObjectId, email: string) {
+  private async generateAndStoreMfaSecret(
+    userId: Types.ObjectId,
+    email: string,
+  ) {
     const { plainSecret, encryptedSecret } = generateMfaSecret();
     await this.userRepo.setMfaSecret(userId, encryptedSecret);
     // Email is read from the authenticated user's own record, never from
@@ -448,12 +655,20 @@ export class AuthService {
       role: user.role,
       isEmailVerified: user.isEmailVerified,
       mfaEnabled: user.mfaEnabled,
+      avatarUrl: user.avatar?.storedFileName
+        ? `/uploads/avatars/${user.avatar.storedFileName}`
+        : null,
       exp: user.exp,
       theta: user.theta,
     };
   }
 
-  async changePassword(userId: Types.ObjectId, currentPassword: string, newPassword: string, ctx: RequestContext) {
+  async changePassword(
+    userId: Types.ObjectId,
+    currentPassword: string,
+    newPassword: string,
+    ctx: RequestContext,
+  ) {
     const user = await this.userRepo.findById(userId, true);
     if (!user) throw new AppError("User not found.", 404);
 
@@ -461,7 +676,10 @@ export class AuthService {
       // OAuth-only account with no password yet — "change password" doesn't
       // apply; they'd need a distinct "set password" flow (not built here,
       // noted as future work).
-      throw new AppError("This account doesn't have a password set. Log in via your OAuth provider.", 400);
+      throw new AppError(
+        "This account doesn't have a password set. Log in via your OAuth provider.",
+        400,
+      );
     }
 
     const ok = await verifyPassword(user.passwordHash, currentPassword);
@@ -470,7 +688,10 @@ export class AuthService {
     assertPasswordPolicy(newPassword, [user.email]);
 
     if (await isPasswordReused(newPassword, user.passwordHistory)) {
-      throw new AppError("Password was used recently. Choose a different password.", 400);
+      throw new AppError(
+        "Password was used recently. Choose a different password.",
+        400,
+      );
     }
 
     const newHash = await hashPassword(newPassword);
@@ -481,6 +702,11 @@ export class AuthService {
     // shouldn't survive a password reset.
     await this.sessionRepo.revokeAllForUser(userId);
 
-    await logActivity({ userId, action: "password_changed", ip: ctx.ip, userAgent: ctx.userAgent });
+    await logActivity({
+      userId,
+      action: "password_changed",
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
   }
 }
