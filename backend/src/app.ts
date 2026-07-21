@@ -11,6 +11,7 @@ import path from "path";
 
 export function createApp(): Application {
   const app = express();
+  const allowedOrigins = process.env.CLIENT_ORIGIN?.split(",") ?? [];
 
   app.set("trust proxy", 1);
 
@@ -28,12 +29,24 @@ export function createApp(): Application {
     }),
   );
 
+  // app.use(
+  //   cors({
+  //     origin: process.env.CLIENT_ORIGIN,
+  //     credentials: true,
+  //   }),
+  // );
   app.use(
-    cors({
-      origin: process.env.CLIENT_ORIGIN,
-      credentials: true,
-    }),
-  );
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  }),
+);
   app.use(
     "/uploads/avatars",
     express.static(path.join(process.cwd(), "uploads", "avatars"), {
