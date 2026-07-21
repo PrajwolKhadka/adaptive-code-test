@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { apiClient } from "@/lib/apiClient";
 import { getApiErrorMessage } from "@/lib/apiError";
 import { AuthCard, FormField, SubmitButton, ErrorText, OAuthButtons } from "@/components/AuthForm";
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const [showCaptcha, setShowCaptcha] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const captchaRef = useRef<HCaptcha>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,14 +36,17 @@ export default function LoginPage() {
     } catch (err) {
       const message = getApiErrorMessage(err);
       setError(message);
-
       if (message.toLowerCase().includes("captcha")) {
         setShowCaptcha(true);
       }
+      captchaRef.current?.resetCaptcha();
+      setCaptchaToken("");
     } finally {
       setLoading(false);
     }
   }
+
+  const siteKey = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY;
 
   return (
     <AuthCard title="Log in">
@@ -51,16 +56,16 @@ export default function LoginPage() {
         <FormField label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
         {showCaptcha && (
           <div className="mb-4">
-            {/*
-              hCaptcha widget goes here — e.g. @hcaptcha/react-hcaptcha,
-              calling setCaptchaToken(token) in its onVerify callback.
-              Left as a placeholder input for now so the flow is testable
-              end-to-end before wiring the actual widget + site key.
-            */}
-            <FormField label="CAPTCHA token (placeholder)" type="text" value={captchaToken} onChange={setCaptchaToken} />
+            {siteKey ? (
+              <HCaptcha ref={captchaRef} sitekey={siteKey} onVerify={(token) => setCaptchaToken(token)} onExpire={() => setCaptchaToken("")} />
+            ) : (
+              <p className="text-xs text-red-600">
+                CAPTCHA required but NEXT_PUBLIC_HCAPTCHA_SITE_KEY isn&apos;t configured.
+              </p>
+            )}
           </div>
         )}
-        <SubmitButton loading={loading}>Log in</SubmitButton>
+        <SubmitButton loading={loading || (showCaptcha && !captchaToken)}>Log in</SubmitButton>
       </form>
       <OAuthButtons />
       <p className="mt-4 text-center text-sm text-gray-600">
