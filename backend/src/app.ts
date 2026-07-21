@@ -12,9 +12,8 @@ import path from "path";
 export function createApp(): Application {
   const app = express();
   const allowedOrigins = process.env.CLIENT_ORIGIN?.split(",") ?? [];
-
   app.set("trust proxy", 1);
-
+  
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -35,7 +34,7 @@ export function createApp(): Application {
   //     credentials: true,
   //   }),
   // );
-  app.use(
+    app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
