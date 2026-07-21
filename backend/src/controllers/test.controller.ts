@@ -9,6 +9,14 @@ function getCtx(req: Request) {
 }
 
 export const testController = {
+  async stats(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await testService.getStudentStats(new Types.ObjectId(req.user!.id));
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+},
   async start(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await testService.startTest(new Types.ObjectId(req.user!.id), getCtx(req));

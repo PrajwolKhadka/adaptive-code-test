@@ -6,6 +6,13 @@ export class QuestionRepository {
     return QuestionModel.create({ ...data, createdBy });
   }
 
+  insertMany(items: any[], createdBy: Types.ObjectId) {
+    return QuestionModel.insertMany(
+      items.map((item) => ({ ...item, createdBy })),
+      { ordered: false },
+    );
+  }
+
   findById(id: string | Types.ObjectId) {
     return QuestionModel.findById(id);
   }
@@ -14,9 +21,6 @@ export class QuestionRepository {
     return QuestionModel.findByIdAndUpdate(id, data, { new: true, runValidators: true });
   }
 
-  // Soft delete — preserves referential integrity for Attempts/Tests that
-  // already reference this question (hard delete would orphan historical
-  // data and break report/audit trails).
   softDelete(id: string | Types.ObjectId) {
     return QuestionModel.findByIdAndUpdate(id, { isActive: false }, { new: true });
   }

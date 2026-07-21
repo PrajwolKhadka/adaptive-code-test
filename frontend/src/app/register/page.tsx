@@ -41,9 +41,9 @@ export default function RegisterPage() {
         <SubmitButton loading={loading}>Register</SubmitButton>
       </form>
       <OAuthButtons />
-      <p className="mt-4 text-center text-sm text-gray-600">
+      <p className="mt-4 text-center text-sm text-white">
         Already have an account?{" "}
-        <a href="/login" className="font-medium text-gray-900 underline">
+        <a href="/login" className="font-medium text-white underline">
           Log in
         </a>
       </p>

@@ -12,35 +12,34 @@ import {
   verifyEmailSchema,
   resendVerificationSchema,
 } from "../dtos/auth.dtos";
+import { handleAvatarUpload } from "../middlewares/avatarUpload.middleware";
 
 const router = Router();
 
-// ---------- Public: registration + email verification ----------
+
 router.post("/register", authLimiter, validateBody(registerSchema), authController.register);
 router.post("/verify-email", authLimiter, validateBody(verifyEmailSchema), authController.verifyEmail);
 router.post("/resend-verification", authLimiter, validateBody(resendVerificationSchema), authController.resendVerification);
 
-// ---------- Public: login + mandatory MFA flow ----------
+router.post("/me/avatar", requireAuth, handleAvatarUpload, authController.uploadAvatar);
+router.delete("/me/avatar", requireAuth, authController.removeAvatar);
+
 router.post("/login", authLimiter, validateBody(loginSchema), authController.login);
 router.post("/verify-mfa", authLimiter, validateBody(verifyMfaSchema), authController.verifyMfa);
-// First-time enrollment (no session yet — authenticated via the mfa_challenge_token cookie set by login/OAuth):
+
 router.post("/mfa/setup-with-challenge", authLimiter, authController.mfaSetupWithChallenge);
 router.post("/mfa/confirm-with-challenge", authLimiter, validateBody(enableMfaSchema), authController.mfaConfirmWithChallenge);
 
 router.post("/refresh", authLimiter, authController.refresh);
 router.post("/logout", authController.logout);
 
-// ---------- OAuth ----------
-// authLimiter here throttles by IP, which is a reasonable guard against
-// someone hammering the redirect endpoint to spam Google/GitHub — the
-// actual account-level protections (lockout, mandatory MFA) still apply
-// once loginOrRegisterOAuth runs.
+
 router.get("/google", authLimiter, authController.googleRedirect);
 router.get("/google/callback", authLimiter, authController.googleCallback);
 router.get("/github", authLimiter, authController.githubRedirect);
 router.get("/github/callback", authLimiter, authController.githubCallback);
 
-// ---------- Authenticated (full session required) ----------
+
 router.get("/me", requireAuth, authController.me);
 router.post("/mfa/setup", requireAuth, authController.setupMfa);
 router.post("/mfa/confirm", requireAuth, validateBody(enableMfaSchema), authController.confirmMfa);

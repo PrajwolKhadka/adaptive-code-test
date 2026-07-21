@@ -27,23 +27,28 @@ export class QuestionService {
     return question;
   }
 
+  async bulkImport(questions: CreateQuestionDTO[], adminId: Types.ObjectId, ctx: { ip: string; userAgent: string }) {
+    const created = await this.repo.insertMany(questions, adminId);
+    await logActivity({
+      userId: adminId,
+      action: "admin_questions_bulk_imported",
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      metadata: { count: created.length },
+    });
+    return created;
+  }
+
   listForAdmin(filter: any = {}) {
-    // Admin view includes everything: hidden test cases, correct outputs, exposure stats.
     return this.repo.listAll(filter);
   }
-  
+
   async getByIdForAdmin(id: string) {
     const question = await this.repo.findById(id);
     if (!question) throw new AppError("Question not found.", 404);
     return question;
   }
-  /**
-   * Student-facing view. Strips hidden test case expected outputs (so a
-   * student can't read the answer key from the API response even though
-   * the test case *input* may be visible), and never returns testCases
-   * marked isHidden at all beyond their existence — this is the IDOR/
-   * information-disclosure control for this resource.
-   */
+
   async getForStudent(id: string, hintsPurchased: number) {
     const question = await this.repo.findById(id);
     if (!question || !question.isActive) throw new AppError("Question not found.", 404);

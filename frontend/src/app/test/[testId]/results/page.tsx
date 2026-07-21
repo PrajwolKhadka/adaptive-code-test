@@ -59,8 +59,8 @@ function TestResultsPageContent() {
         <p className="text-sm text-gray-700">{results.aiSummary}</p>
       </div>
 
-      <a href="/test" className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
-        Take another test
+      <a href="/dashboard" className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
+        Back to dashboard
       </a>
     </main>
   );

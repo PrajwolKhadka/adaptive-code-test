@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@hcaptcha/react-hcaptcha": "^2.0.2",
     "@monaco-editor/react": "^4.6.0",
     "axios": "^1.7.2",
     "next": "^14.2.3",

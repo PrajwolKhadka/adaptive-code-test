@@ -137,4 +137,21 @@ export class UserRepository {
       { $inc: { emailVerificationAttempts: 1 } },
     );
   }
+  async setAvatar(
+    userId: Types.ObjectId,
+    avatar: {
+      storedFileName: string;
+      mimeType: "image/png" | "image/jpeg";
+      fileSizeBytes: number;
+    },
+  ) {
+    await UserModel.updateOne(
+      { _id: userId },
+      { avatar: { ...avatar, updatedAt: new Date() } },
+    );
+  }
+
+  async clearAvatar(userId: Types.ObjectId) {
+    await UserModel.updateOne({ _id: userId }, { $unset: { avatar: "" } });
+  }
 }

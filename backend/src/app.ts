@@ -7,6 +7,7 @@ import hpp from "hpp";
 import { apiLimiter } from "./middlewares/rateLimit.middleware";
 import { errorHandler } from "./middlewares/errorHandler.middleware";
 import routes from "./routes";
+import path from "path";
 
 export function createApp(): Application {
   const app = express();
@@ -33,8 +34,14 @@ export function createApp(): Application {
       credentials: true,
     }),
   );
-
-  app.use(express.json({ limit: "100kb" }));
+  app.use(
+    "/uploads/avatars",
+    express.static(path.join(process.cwd(), "uploads", "avatars"), {
+      dotfiles: "deny",
+      maxAge: "7d",
+    }),
+  );
+  app.use(express.json({ limit: "2mb" }));
   app.use(cookieParser());
   app.use(mongoSanitize());
   app.use(hpp());

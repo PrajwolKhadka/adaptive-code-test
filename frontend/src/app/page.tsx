@@ -1,3 +1,10 @@
+
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useCurrentUser } from "@/lib/useCurrentUser";
+
 const Arrow = () => (
   <span
     aria-hidden="true"
@@ -8,12 +15,21 @@ const Arrow = () => (
 );
 
 export default function Home() {
+  const router = useRouter();
+  const { user, loading } = useCurrentUser();
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace(user.role === "admin" ? "/admin/dashboard" : "/dashboard");
+    }
+  }, [loading, user, router]);
+
   return (
     <main className="min-h-screen overflow-hidden bg-white text-[#07111f]">
       <nav className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-12">
         <a href="/" className="flex items-center">
           <img
-            src="/logo.png"
+            src="/logo3.png"
             alt="Adaptive Code Platform"
             className="h-10 w-auto object-contain sm:h-10"
           />
@@ -37,8 +53,7 @@ export default function Home() {
           </a>
           <a
             href="/register"
-            className="rounded-full bg-[#07111f] px-5 py-2.5 text-white transition hover:-translate-y-0.5 hover:bg-[#1976ff] hover:shadow-lg hover:shadow-blue-500/20"
-          >
+            className="rounded-full bg-[#07111f] px-5 py-2.5 text-white transition hover:-translate-y-0.5 hover:bg-[#1976ff] hover:shadow-lg hover:shadow-blue-500/20">
             Start assessing
           </a>
         </div>
@@ -63,8 +78,7 @@ export default function Home() {
           <div className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
             <a
               href="/register"
-              className="group inline-flex items-center gap-3 rounded-full bg-[#1976ff] px-6 py-4 text-sm font-extrabold text-white transition hover:-translate-y-1 hover:bg-[#075fd7] hover:shadow-xl hover:shadow-blue-500/25"
-            >
+              className="group inline-flex items-center gap-3 rounded-full bg-[#1976ff] px-6 py-4 text-sm font-extrabold text-white transition hover:-translate-y-1 hover:bg-[#075fd7] hover:shadow-xl hover:shadow-blue-500/25">
               Create an assessment <Arrow />
             </a>
 
@@ -202,7 +216,7 @@ export default function Home() {
               [
                 "02",
                 "Adapt",
-                "The platform raises, lowers, or shifts the next question’s focus based on their live performance.",
+                "The platform raises, lowers, or shifts the next question's focus based on their live performance.",
               ],
               [
                 "03",
@@ -309,14 +323,14 @@ export default function Home() {
       <footer className="mx-auto flex max-w-7xl flex-col gap-5 border-t border-slate-100 px-5 py-9 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
         <a href="/" className="flex items-center">
           <img
-            src="/logo.png"
+            src="/logo3.png"
             alt="Adaptive Code Platform"
             className="h-7 w-auto object-contain"
           />
         </a>
 
         <span>Adaptive assessments for modern engineering teams.</span>
-        <span>© 2026 Adaptive</span>
+        <span>© 2026 Maanak-CodingPlatform</span>
       </footer>
     </main>
   );
