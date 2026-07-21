@@ -16,8 +16,8 @@ async function bootstrap() {
   await connectDB(MONGO_URI);
 
   const app = createApp();
-  app.listen(PORT, () => {
-    logger.info(`Server listening on port ${PORT}`);
+  app.listen(Number(PORT), "0.0.0.0", () => {
+    logger.info(`Server listening on port 0.0.0.0:${PORT}`);
   });
 }
 

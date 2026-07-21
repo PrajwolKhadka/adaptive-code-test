@@ -1,13 +1,7 @@
-version: "3.9"
-
 services:
   mongo:
     image: mongo:7
     restart: unless-stopped
-    # --replSet: multi-document transactions (used by the EXP ledger for
-    # atomic earn/spend + rollback) require a replica set, even a
-    # single-node one. Initialize once with:
-    #   docker compose exec mongo mongosh --eval "rs.initiate()"
     command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
       - "27017:27017"
@@ -23,6 +17,10 @@ services:
       - ./backend/.env
     environment:
       - MONGO_URI=mongodb://mongo:27017/adaptive-code-platform
+      - CLIENT_ORIGIN=${CLIENT_ORIGIN}
+      - COOKIE_DOMAIN=${COOKIE_DOMAIN}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI}
     depends_on:
       - mongo
     ports:
@@ -32,10 +30,12 @@ services:
       - default
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        NEXT_PUBLIC_HCAPTCHA_SITE_KEY: ${NEXT_PUBLIC_HCAPTCHA_SITE_KEY}
     restart: unless-stopped
-    env_file:
-      - ./frontend/.env
     depends_on:
       - backend
     ports:
@@ -45,7 +45,7 @@ services:
 
 networks:
   internal:
-    internal: true # DB not reachable from outside the compose network
+    internal: true
   default:
 
 volumes:
