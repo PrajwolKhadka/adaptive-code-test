@@ -64,6 +64,7 @@ export interface CurrentUser {
   role: "student" | "admin";
   isEmailVerified: boolean;
   mfaEnabled: boolean;
+  avatarUrl: string | null;
   exp: number;
   theta: number;
 }
