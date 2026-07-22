@@ -44,7 +44,8 @@ import crypto from "crypto";
 import path from "path";
 import fs from "fs";
 import { AppError } from "../middlewares/errorHandler.middleware";
-const pdfParse = require("pdf-parse");
+const pdfParseModule = require("pdf-parse");
+const pdfParse = pdfParseModule.default || pdfParseModule;
 export const UPLOAD_DIR = path.join(process.cwd(), "uploads", "resources");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -76,7 +77,7 @@ export const pdfUpload = multer({
  * accepts a valid header followed by garbage — pdf-parse walks the
  * actual xref table / page tree to catch that gap.
  */
-export async function assertIsPdfOrCleanup(filePath: string): Promise<void> {
+export function assertIsPdfOrCleanup(filePath: string): void {
   const fd = fs.openSync(filePath, "r");
   const header = Buffer.alloc(5);
   fs.readSync(fd, header, 0, 5, 0);
@@ -87,13 +88,14 @@ export async function assertIsPdfOrCleanup(filePath: string): Promise<void> {
     throw new AppError("Uploaded file is not a valid PDF.", 400);
   }
 
-  try {
-    const buffer = fs.readFileSync(filePath);
-    const data = await pdfParse(buffer);
-    if (!data || data.numpages < 1) {
-      throw new Error("no pages");
-    }
-  } catch {
+  const stats = fs.statSync(filePath);
+  const tailSize = Math.min(1024, stats.size);
+  const tailBuffer = Buffer.alloc(tailSize);
+  const fd2 = fs.openSync(filePath, "r");
+  fs.readSync(fd2, tailBuffer, 0, tailSize, stats.size - tailSize);
+  fs.closeSync(fd2);
+
+  if (!tailBuffer.toString("latin1").includes("%%EOF")) {
     fs.unlinkSync(filePath);
     throw new AppError("Uploaded file is not a valid PDF.", 400);
   }

@@ -26,7 +26,6 @@
     "nodemailer": "^6.9.13",
     "openai": "^6.48.0",
     "otplib": "^12.0.1",
-    "pdf-parse": "^2.4.5",
     "sanitize-html": "^2.17.6",
     "sharp": "^0.35.3",
     "winston": "^3.13.0",
