@@ -14,6 +14,7 @@ export class QuestionService {
     ctx: { ip: string; userAgent: string },
   ) {
     const sanitizeDto= {
+      ...dto,
       title: sanitizeText(dto.title),
       prompt: sanitizeText(dto.prompt),
       hints: dto.hints?.map(sanitizeText),
