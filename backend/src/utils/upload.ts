@@ -44,8 +44,7 @@ import crypto from "crypto";
 import path from "path";
 import fs from "fs";
 import { AppError } from "../middlewares/errorHandler.middleware";
-const pdfParseModule = require("pdf-parse");
-const pdfParse = pdfParseModule.default || pdfParseModule;
+
 export const UPLOAD_DIR = path.join(process.cwd(), "uploads", "resources");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
