@@ -30,7 +30,7 @@ export class ResourceService {
     adminId: Types.ObjectId,
     ctx: Ctx,
   ) {
-    assertIsPdfOrCleanup(file.path); // throws + deletes the file if the content isn't really a PDF
+    await assertIsPdfOrCleanup(file.path); // throws + deletes the file if the content isn't really a PDF
 
     const resource = await this.repo.createPdf({
       title,
