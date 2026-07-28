@@ -25,18 +25,11 @@ export class AvatarService {
   private userRepo = new UserRepository();
 
   async upload(userId: Types.ObjectId, file: Express.Multer.File, ctx: RequestContext) {
-    // Ground truth check: sniff the real bytes regardless of what the
-    // client claimed. A relabeled non-image file passes multer's
-    // fileFilter but gets caught here.
+
     const sniffedMime = detectImageMimeFromBuffer(file.buffer);
     if (!sniffedMime) {
       throw new AppError("File is not a valid PNG or JPG image.", 400);
     }
-
-    // Re-encode from scratch rather than storing the uploaded bytes
-    // verbatim. This strips EXIF/metadata and neutralizes polyglot files
-    // (bytes that are simultaneously a valid image and valid something-else
-    // depending on the parser) — the output is always a clean re-render.
     let processedBuffer: Buffer;
     let finalMime: "image/png" | "image/jpeg";
     try {
@@ -57,8 +50,6 @@ export class AvatarService {
 
     await fs.mkdir(AVATAR_DIR, { recursive: true });
 
-    // Server-generated filename — never derived from user input, so
-    // there's no path-traversal or filename-collision surface.
     const storedFileName = `${userId.toString()}_${crypto.randomUUID()}${EXT_BY_MIME[finalMime]}`;
     await fs.writeFile(path.join(AVATAR_DIR, storedFileName), processedBuffer);
 

@@ -55,6 +55,7 @@ export function createApp(): Application {
   );
   app.use(express.json({ limit: "2mb" }));
   app.use(cookieParser());
+  // strips $/. operators from req.body/query/params for NoSQL injection defense
   app.use(mongoSanitize());
   app.use(hpp());
 

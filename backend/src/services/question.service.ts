@@ -7,7 +7,15 @@ import { sanitizeText } from "../utils/sanitize";
 
 export class QuestionService {
   private repo = new QuestionRepository();
-
+  /**
+ * Creates a new question after sanitizing all free-text fields.
+ *
+ * title, prompt, and hints are run through sanitizeText before they
+ * reach the repository. This is the service-layer defense against
+ * stored XSS — an admin (or a compromised admin session) cannot
+ * persist raw HTML/JS that would later be rendered to students or
+ * other admins. The original DTO is never passed through untouched.
+ */
   async create(
     dto: CreateQuestionDTO,
     adminId: Types.ObjectId,

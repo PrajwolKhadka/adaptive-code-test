@@ -1,7 +1,14 @@
 import argon2 from "argon2";
 import zxcvbn from "zxcvbn";
 import { AppError } from "../middlewares/errorHandler.middleware";
-
+/**
+ * Password hashing & verification section.
+ * Configures Argon2id (memory-hard, side-channel resistant) and exposes
+ * hash/verify helpers. Only irreversible hashes are ever stored; the chosen
+ * parameters (≈19 MB memory, 2 iterations) make offline brute-force and
+ * GPU/ASIC cracking expensive. verifyPassword never throws, preventing
+ * information leaks and DoS from malformed hashes.
+ */
 const ARGON2_OPTS = {
   type: argon2.argon2id,
   memoryCost: 19456,
@@ -21,8 +28,15 @@ export async function verifyPassword(hash: string, plain: string): Promise<boole
     return false;
   }
 }
-
-const MIN_LENGTH = 12;
+/**
+ * Password policy enforcement section.
+ * Enforces minimum/maximum length, required character classes, and a
+ * zxcvbn strength score ≥ 3. Rejects short, overly long (DoS risk),
+ * low-entropy, dictionary, or pattern-based passwords before they can
+ * be hashed and stored. assertPasswordPolicy centralizes the check so
+ * callers cannot forget to validate.
+ */
+const MIN_LENGTH = 8;
 const MAX_LENGTH = 128;
 const COMPLEXITY_REGEX = {
   upper: /[A-Z]/,
@@ -37,7 +51,13 @@ interface PasswordPolicyResult {
   errors: string[];
   score: number;
 }
-
+/**
+ * Password policy enforcement block.
+ * Validates length, required character classes, and zxcvbn strength score.
+ * Rejects short, overly long (DoS risk), low-entropy, dictionary, or
+ * pattern-based passwords before they can be hashed and stored.
+ * assertPasswordPolicy centralizes the check so callers cannot skip validation.
+ */
 export function checkPasswordPolicy(password: string, userInputs: string[] = []): PasswordPolicyResult {
   const errors: string[] = [];
 

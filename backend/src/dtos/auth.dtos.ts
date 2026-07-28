@@ -2,11 +2,17 @@ import {z} from "zod";
 
 export const registerSchema = z.object({
     email: z.string().email().max(254),
-    password: z.string().min(8).max(120),
+    password: z.string().min(8, "Password must be at least 8 characters long.").max(120),
 });
 export type RegisterDTO = z.infer<typeof registerSchema>;
 
 export const loginSchema = z.object({
+    // Validates and sanitizes login input before it reaches the application logic.
+    // Ensures the email is a valid email address with a safe maximum length and
+    // restricts the password and captcha token to expected string values. This
+    // prevents malformed or unexpected data from reaching the database, reducing
+    // the risk of NoSQL injection by rejecting objects and other non string
+    // payloads that could be interpreted as query operators.
     email:z.string().email().max(254),
     password: z.string().min(1).max(128),
     captchaToken: z.string().optional(),

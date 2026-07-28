@@ -269,9 +269,6 @@ export class TestService {
   private expLedger = new ExpLedger();
 
   async startTest(studentId: Types.ObjectId, ctx: Ctx) {
-    // Stratified pool build: 3 questions per difficulty tier = 15 total,
-    // matching your bin-density plan exactly, no "remaining fill" fallback
-    // needed since PER_TIER * TIERS.length === QUESTIONS_PER_TEST.
     const poolIds: Types.ObjectId[] = [];
 
     for (const tier of TIERS) {
@@ -359,9 +356,9 @@ export class TestService {
     if (!test) throw new AppError("Test not found.", 404);
 
     const questionObjectId = new Types.ObjectId(questionId);
-    // Ownership check: the question must actually be part of THIS test's
-    // snapshotted pool — prevents buying hints for arbitrary question IDs
-    // outside the student's assigned set.
+    // Ensure the question actually belongs to this test’s pool.
+    // Prevents students from purchasing hints for questions outside the current test
+    // (IDOR / cross-test access protection).
     const inPool = test.questionPoolIds.some(
       (id) => id.toString() === questionId,
     );
@@ -412,13 +409,15 @@ export class TestService {
       (id) => id.toString() === dto.questionId,
     );
     if (!inPool) throw new AppError("Question is not part of this test.", 403);
-
+    // Verify the user hasn't already submitted an answer for this question
+    // within the current test attempt (prevents re-answering)  
     const alreadyAnswered = await this.attemptRepo.hasAnswered(
       test._id as Types.ObjectId,
       new Types.ObjectId(dto.questionId),
     );
     if (alreadyAnswered) throw new AppError("Question already answered.", 400);
-
+    // Retrieve the full question document so we can access its test cases
+    // and time limit for code execution
     const question = await this.questionRepo.findById(dto.questionId);
     if (!question) throw new AppError("Question not found.", 404);
 
@@ -617,12 +616,6 @@ export class TestService {
     ).length;
     const finalTheta =
       attempts.length > 0 ? attempts[attempts.length - 1].thetaAfter : 0;
-
-    // Idempotent: if this test was already finalized (e.g. the client
-    // calls finalize both when the test page detects "done" AND again on
-    // the results page mount), just return the stored summary rather than
-    // throwing — avoids a broken results page AND avoids paying for a
-    // second AI API call for the same test.
     if (test.status === "completed") {
       return {
         totalQuestions: attempts.length,

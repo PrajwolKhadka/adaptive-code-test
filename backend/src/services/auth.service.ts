@@ -165,15 +165,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * Step 1 of login: verify credentials. MFA is mandatory app-wide, so this
-   * NEVER returns a usable session directly — it always hands back an
-   * mfaChallengeToken. The client's next step depends on mfaSetupRequired:
-   * - false: user already has TOTP enrolled -> call /auth/verify-mfa
-   * - true: first login, no TOTP yet -> call /auth/mfa/setup-with-challenge
-   *   then /auth/mfa/confirm-with-challenge, which enrolls AND completes
-   *   login in one step.
-   */
   async login(
     email: string,
     password: string,
@@ -305,14 +296,6 @@ export class AuthService {
     return { mfaSetupRequired: !user.mfaEnabled, mfaChallengeToken };
   }
 
-  /**
-   * Called after Google/GitHub confirms the user's identity. Finds an
-   * existing account by provider ID, links the provider to an existing
-   * password account with a matching (provider-verified) email, or
-   * provisions a brand-new account. Always routes through the same
-   * mandatory-MFA challenge as password login — OAuth authenticates WHO
-   * the user is, but doesn't substitute for this app's own 2FA requirement.
-   */
   async loginOrRegisterOAuth(
     provider: "google" | "github",
     profile: OAuthProfile,
@@ -340,8 +323,7 @@ export class AuthService {
           provider,
           profile.providerId,
         );
-        // Provider already verified this email, so it's safe to also mark
-        // isEmailVerified on the linked account, even if it was pending.
+
         if (!existingByEmail.isEmailVerified) {
           await this.userRepo.markEmailVerified(
             existingByEmail._id as Types.ObjectId,
@@ -444,11 +426,6 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  /**
-   * Refresh flow with rotation + reuse detection. Every call consumes the
-   * presented refresh token and issues a new one; presenting an
-   * already-used token triggers a full session wipe for that user.
-   */
   async refresh(refreshToken: string, ctx: RequestContext) {
     const tokenHash = hashRefreshToken(refreshToken);
     const session = await this.sessionRepo.findByTokenHash(tokenHash);
@@ -474,11 +451,6 @@ export class AuthService {
       throw new AppError("Session expired. Please log in again.", 401);
     }
 
-    // Device-binding check: flag (don't necessarily hard-block, to avoid
-    // locking out users whose browser legitimately updates its UA string)
-    // a refresh from a different device than the one that started the
-    // session. Hard-block is easy to flip on if your report wants strict
-    // binding — trade-off noted here for the write-up.
     if (session.userAgentHash !== hashUserAgent(ctx.userAgent)) {
       await logActivity({
         userId: session.userId,
@@ -542,11 +514,6 @@ export class AuthService {
     await this.userRepo.enableMfa(userId);
   }
 
-  /**
-   * Same as setupMfa, but authenticated via the short-lived MFA challenge
-   * token instead of a full session — used for first-time enrollment
-   * immediately after register/OAuth, before any session exists yet.
-   */
   async setupMfaWithChallenge(mfaChallengeToken: string) {
     const payload = this.mustVerifyChallenge(mfaChallengeToken);
     const user = await this.userRepo.findById(payload.sub, true);
@@ -570,12 +537,15 @@ export class AuthService {
       user.email,
     );
   }
-
-  /**
-   * Confirms first-time TOTP enrollment AND completes login in one step —
-   * this is the only path that turns an mfaChallengeToken into a real
-   * session for a user who didn't have MFA enrolled yet.
-   */
+/**
+ * Completes MFA enrollment after the user has scanned the QR / entered the secret.
+ * Security flow:
+ * 1. Verifies the short-lived MFA challenge token (proves the user just passed password auth and is in the middle of setup — prevents unsolicited enabling).
+ * 2. Confirms the account has a pending secret and MFA is not already enabled (avoids re-enrollment races and state confusion).
+ * 3. Validates the supplied TOTP code against the encrypted secret; failed attempts are logged with IP/UA for monitoring and rate-limit / lockout signals.
+ * 4. Only after a correct code does it enable MFA and issue a full session. This guarantees the authenticator app is working before MFA is turned on,preventing 
+ *    lock-outs and ensuring the second factor is actually under the legitimate user’s control.
+ */
   async confirmMfaWithChallenge(
     mfaChallengeToken: string,
     totpCode: string,
@@ -631,24 +601,15 @@ export class AuthService {
   ) {
     const { plainSecret, encryptedSecret } = generateMfaSecret();
     await this.userRepo.setMfaSecret(userId, encryptedSecret);
-    // Email is read from the authenticated user's own record, never from
-    // client input — prevents a client from labeling the QR code with an
-    // arbitrary/spoofed identity.
+  
     const otpauthUrl = buildOtpAuthUrl(email, plainSecret);
-    // Return the plain secret + otpauth URL ONCE, for QR provisioning.
-    // It is never returned again after this call — only the encrypted
-    // form is persisted.
+
     return { otpauthUrl, plainSecret };
   }
 
   async getPublicProfile(userId: Types.ObjectId) {
     const user = await this.userRepo.findById(userId);
     if (!user) throw new AppError("User not found.", 404);
-    // Deliberately whitelist fields rather than returning the Mongoose doc
-    // directly — even with passwordHash/mfaSecret excluded by schema
-    // `select: false`, an explicit whitelist here is a second layer that
-    // survives future schema changes without silently leaking a new
-    // sensitive field to the client.
     return {
       id: user._id,
       email: user.email,
@@ -697,9 +658,6 @@ export class AuthService {
     const newHash = await hashPassword(newPassword);
     const newHistory = pushPasswordHistory(user.passwordHistory, newHash);
     await this.userRepo.updatePassword(userId, newHash, newHistory);
-
-    // Password change invalidates all existing sessions — a stolen session
-    // shouldn't survive a password reset.
     await this.sessionRepo.revokeAllForUser(userId);
 
     await logActivity({

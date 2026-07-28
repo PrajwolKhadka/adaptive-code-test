@@ -1,7 +1,7 @@
 import { AppError } from "../middlewares/errorHandler.middleware";
 
 // Extracts and validates a YouTube video ID from common URL shapes.
-// Deliberately strict — only accepts youtube.com/youtu.be hosts and an
+// Deliberately strict only accepts youtube.com/youtu.be hosts and an
 // 11-character alphanumeric ID pattern. This matters because the
 // frontend embeds this ID directly into a youtube-nocookie.com iframe src;
 // if arbitrary strings were accepted here, a malicious "video URL" could

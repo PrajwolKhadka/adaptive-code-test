@@ -1,10 +1,6 @@
 import { Difficulty, difficultyMap } from "../models/index.models";
 
-// Rasch-style adaptive engine — see report note: this is expert-assigned
-// item difficulty (b) + incremental ability estimate (theta), not a fully
-// empirically-calibrated 2PL/3PL IRT model (which needs hundreds of
-// responses per item to calibrate reliably, unrealistic at this scale).
-// Named accordingly in the report as "IRT/CAT-inspired adaptive engine."
+
 
 const LEARNING_RATE = 0.4; // how much a single response moves theta — tune + justify in report
 const HINT_PENALTY_PER_HINT = 0.15; // discount applied to correctness signal per hint used
@@ -20,12 +16,7 @@ export function computeEffectiveCorrectness(testCaseResults: { passed: boolean; 
   return Math.max(0, Math.min(1, rawCorrectness * discount));
 }
 
-/**
- * Updates theta given the item's difficulty and the (hint-discounted)
- * correctness of the response. Uses expected-probability-vs-actual delta,
- * same shape as a Rasch model update, just with a fixed learning rate
- * instead of a formally derived one.
- */
+
 export function updateTheta(currentTheta: number, itemDifficulty: Difficulty, effectiveCorrectness: number): number {
   const b = difficultyMap[itemDifficulty];
   const expectedP = 1 / (1 + Math.exp(-(currentTheta - b)));
@@ -33,12 +24,6 @@ export function updateTheta(currentTheta: number, itemDifficulty: Difficulty, ef
   return currentTheta + delta;
 }
 
-/**
- * Picks the unanswered item whose difficulty is closest to current theta,
- * with a light exposure-control tiebreak: among items within a small
- * distance band, prefer the less-frequently-served one, so heavily-used
- * items don't get shown to every student in the same band every time.
- */
 export function selectNextItem<T extends { difficulty: Difficulty; exposureCount: number }>(
   candidates: T[],
   theta: number,

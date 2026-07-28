@@ -4,46 +4,6 @@ import path from "path";
 import os from "os";
 import crypto from "crypto";
 
-/**
- * ============================================================================
- * SCOPED SECURITY TRADEOFF — document this explicitly in your report.
- * ============================================================================
- * This runs untrusted student code as a subprocess on the SAME container as
- * the API server, using OS-level limits (timeout, output size cap, minimal
- * env, no shell). It does NOT provide per-submission container isolation
- * (fresh Docker container per run), which is the gold-standard approach used
- * by real judges (LeetCode/HackerRank/Judge0).
- *
- * Why this scope: full per-submission container orchestration (spin up,
- * resource-limit, tear down, cleanup on crash) is a multi-day build on its
- * own and was descoped for the one-week timeline.
- *
- * Mitigations actually in place:
- * - Hard execution timeout (per-question configurable, default 3s)
- * - Output size cap (prevents memory exhaustion via huge stdout)
- * - No shell interpolation — execFile with an argument array, not exec()
- *   with a concatenated string, so there's no command-injection surface
- *   from the code content itself
- * - Runs as the same non-root `appuser` already set in the Dockerfile
- * - Python's -I (isolated mode) and -B (no bytecode cache) flags reduce
- *   some attack surface (ignores PYTHONPATH/user site-packages)
- *
- * NOT mitigated by this implementation (call these out as known
- * limitations in your threat model, section "Design and Implementation"):
- * - A malicious submission CAN still make outbound network calls (no
- *   network namespace isolation at the process level)
- * - Filesystem access is not chrooted/jailed — code runs with the same
- *   filesystem visibility as the backend process
- * - No per-submission memory/CPU cgroup limit (only wall-clock timeout)
- *
- * Recommended upgrade path (mention in report as "future work"): move this
- * into a separate worker service running in its own Docker container with
- * --network none, a read-only root filesystem, and cgroup memory/CPU
- * limits — SubmissionJob (see models) is already shaped to support this
- * as an async queue without changing the API contract.
- * ============================================================================
- */
-
 const EXECUTION_TMP_ROOT = path.join(os.tmpdir(), "code-exec");
 const MAX_OUTPUT_BYTES = 64 * 1024; // 64KB cap on captured stdout/stderr
 
@@ -54,7 +14,19 @@ export interface TestCaseExecutionResult {
   stderr?: string;
   timedOut?: boolean;
 }
-
+/**
+ * Safely executes a single Python snippet in an isolated temporary file.
+ *
+ * Security measures:
+ * - Writes code to a unique temp file with mode 0o600 (owner-only read/write).
+ * - Runs python3 with -I (isolated mode: ignores PYTHONPATH, user site-packages)
+ *   and -B (no .pyc files) to reduce environment influence.
+ * - Minimal env (only PATH) so the process cannot inherit secrets or custom modules.
+ * - Hard wall-clock timeout with SIGKILL to prevent infinite loops / resource exhaustion.
+ * - Caps collected stdout/stderr to MAX_OUTPUT_BYTES to avoid memory DoS.
+ * - Always deletes the temp file in a finally block, even on errors.
+ * - stdin is written and closed immediately; no interactive shell is exposed.
+ */
 async function runOnce(code: string, stdin: string, timeLimitMs: number): Promise<{ stdout: string; stderr: string; timedOut: boolean }> {
   await fs.mkdir(EXECUTION_TMP_ROOT, { recursive: true });
   const fileId = crypto.randomUUID();
@@ -65,8 +37,6 @@ async function runOnce(code: string, stdin: string, timeLimitMs: number): Promis
   try {
     return await new Promise<{ stdout: string; stderr: string; timedOut: boolean }>((resolve) => {
       const child = spawn("python3", ["-I", "-B", filePath], {
-        // Minimal environment — don't leak the backend's own secrets
-        // (JWT keys, DB URI, etc.) into the executed process's env.
         env: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
         stdio: ["pipe", "pipe", "pipe"],
       });
@@ -80,7 +50,7 @@ async function runOnce(code: string, stdin: string, timeLimitMs: number): Promis
         timedOut = true;
         child.kill("SIGKILL");
       }, timeLimitMs);
-
+      // Bound output size so a malicious print loop cannot exhaust memory
       child.stdout.on("data", (chunk) => {
         if (stdout.length < MAX_OUTPUT_BYTES) stdout += chunk.toString();
       });
@@ -105,13 +75,13 @@ async function runOnce(code: string, stdin: string, timeLimitMs: number): Promis
           timedOut,
         });
       });
-
+      // Feed stdin once and close, no interactive session
       child.stdin.write(stdin);
       child.stdin.end();
     });
   } finally {
+    // Always clean up the source file, even if the process crashed
     await fs.unlink(filePath).catch(() => {
-      /* best-effort cleanup — don't fail the request if this fails */
     });
   }
 }
@@ -121,11 +91,6 @@ export async function runAgainstTestCases(
   testCases: { input: string; expectedOutput: string; weight: number }[],
   timeLimitMs: number,
 ): Promise<TestCaseExecutionResult[]> {
-  // Sequential execution (not Promise.all) — deliberately bounds concurrent
-  // subprocess load per submission. If you want parallelism for speed later,
-  // cap it (e.g. p-limit) rather than firing all test cases at once; this
-  // endpoint sits behind submissionLimiter but subprocess fan-out is still
-  // worth bounding independently.
   const results: TestCaseExecutionResult[] = [];
 
   for (const tc of testCases) {

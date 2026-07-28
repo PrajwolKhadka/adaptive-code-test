@@ -5,7 +5,11 @@ export interface OAuthProfile {
   email: string;
   emailVerified: boolean;
 }
-
+/**
+ * Builds the Google OAuth 2.0 authorization URL. Includes a cryptographically random `state` parameter to prevent CSRF attacks (the callback must 
+ * later verify that the returned state matches the one we stored). `prompt=select_account` forces account chooser sousers don’t silently 
+ * re-use a previously selected Google account. Only the authorization code flow is used — no tokens are ever exposed to the frontend.
+ */
 export function buildGoogleAuthUrl(state: string): string {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID as string,
@@ -18,7 +22,10 @@ export function buildGoogleAuthUrl(state: string): string {
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
-
+/** Exchanges a Google authorization code for an access token, then fetches the user’s profile. The client secret stays on the server only. We request the minimal scopes
+ * needed and extract only `sub`, email, and verification status — never store the access token itself. This keeps the attack surface small and ensures we only 
+ * trust verified email addresses when linking accounts.
+ */
 export async function exchangeGoogleCode(code: string): Promise<OAuthProfile> {
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -58,7 +65,10 @@ export function buildGithubAuthUrl(state: string): string {
   });
   return `https://github.com/login/oauth/authorize?${params.toString()}`;
 }
-
+/** Exchanges a GitHub authorization code for an access token and retrieves the user’s profile + primary email. Client secret never leaves 
+ * the server. We explicitly fetch the emails endpoint and prefer the primary verified address, refusing to proceed if none is available. 
+ * This prevents account takeover via unverified or missing emails and avoids storing the GitHub access token.
+ */
 export async function exchangeGithubCode(code: string): Promise<OAuthProfile> {
   const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
     method: "POST",

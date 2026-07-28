@@ -10,7 +10,16 @@ declare global {
     }
   }
 }
-
+/**
+ * Authentication middleware.
+ * Requires a valid access_token cookie, verifies the JWT signature/expiry,
+ * then checks that the referenced session still exists and has not been
+ * revoked. This combination protects against:
+ * - missing/invalid tokens
+ * - expired tokens
+ * - stolen tokens whose session was explicitly logged out or revoked
+ * Only after all checks pass is req.user populated for downstream handlers.
+ */
 export async function requireAuth(req: Request, _res: Response, next: NextFunction) {
   const token = req.cookies?.access_token;
   if (!token) return next(new AppError("Authentication required.", 401));
